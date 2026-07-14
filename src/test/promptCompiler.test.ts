@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { compilePromptDocument, compileTopLevelJsonObjects } from '../services/ai/promptCompiler.js';
+import { compilePrompt } from '../lib/promptCompiler.js';
 import { SceneRecipe } from '../types/schemas.js';
 
 const VALID_RECIPE: any = {
@@ -371,6 +372,62 @@ describe('PromptCompiler (Phase 4-B)', () => {
       }
     };
     expect(() => compilePromptDocument(invalidRecipe as any)).toThrow();
+  });
+
+  it('31. 标题及编译器一致性校验 (Phase 4-B-1)', () => {
+    const doc = compilePromptDocument(VALID_RECIPE);
+    const legacyDoc = compilePrompt(VALID_RECIPE);
+
+    // 1. 六个标题严格使用【】
+    const expectedTitles = [
+      '【1. 任务与参考关系】',
+      '【2. 产品匹配依据】',
+      '【3. 场景与风格】',
+      '【4. 镜头与构图】',
+      '【5. 光线与装饰】',
+      '【6. 输出限制】'
+    ];
+    for (const title of expectedTitles) {
+      expect(doc.fullPrompt).toContain(title);
+    }
+
+    // 2. 不存在〖】或〖〗旧标题
+    expect(doc.fullPrompt).not.toContain('〖');
+    expect(doc.fullPrompt).not.toContain('〗');
+
+    // 3. 六个标题出现顺序严格固定
+    const positions = expectedTitles.map(t => doc.fullPrompt.indexOf(t));
+    for (let i = 0; i < positions.length - 1; i++) {
+      expect(positions[i]).toBeGreaterThan(-1);
+      expect(positions[i + 1]).toBeGreaterThan(positions[i]);
+    }
+
+    // 4. 每个标题严格只出现一次
+    for (const title of expectedTitles) {
+      const firstIdx = doc.fullPrompt.indexOf(title);
+      const lastIdx = doc.fullPrompt.lastIndexOf(title);
+      expect(firstIdx).toBe(lastIdx);
+    }
+
+    // 5. 不存在 compilerVersion = 1.0.0
+    expect(doc.compilerVersion).not.toBe('1.0.0');
+
+    // 6. createdAt 严格等于 recipe.updatedAt (不包含写死 fallback)
+    const customRecipe1 = { ...VALID_RECIPE, updatedAt: '2026-12-31T23:59:59Z' };
+    const doc1 = compilePromptDocument(customRecipe1);
+    expect(doc1.createdAt).toBe('2026-12-31T23:59:59Z');
+
+    const customRecipe2 = { ...VALID_RECIPE, updatedAt: '2025-05-01T12:00:00-05:00' };
+    const doc2 = compilePromptDocument(customRecipe2);
+    expect(doc2.createdAt).toBe('2025-05-01T12:00:00-05:00');
+
+    // 7. 正式主流程和兼容入口编译结果逐字符一致
+    expect(doc.fullPrompt).toBe(legacyDoc.fullPrompt);
+    expect(doc.fullJson).toBe(legacyDoc.fullJson);
+    expect(JSON.stringify(doc.sections)).toBe(JSON.stringify(legacyDoc.sections));
+    expect(JSON.stringify(doc.objectJson)).toBe(JSON.stringify(legacyDoc.objectJson));
+    expect(doc.createdAt).toBe(legacyDoc.createdAt);
+    expect(doc.compilerVersion).toBe(legacyDoc.compilerVersion);
   });
 
 });
