@@ -89,7 +89,7 @@ export function SceneDirectionPanel({
                 <div
                   key={dir.id}
                   id={`direction-card-${dir.id}`}
-                  onClick={() => !loading && onDirectionSelect(dir.id)}
+                  onClick={() => onDirectionSelect(dir.id)}
                   className={`border-2 rounded-xl p-5 transition-all flex flex-col gap-4 cursor-pointer relative ${
                     isSelected
                       ? 'border-indigo-600 bg-indigo-50/10 ring-1 ring-indigo-600'

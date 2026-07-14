@@ -407,33 +407,6 @@ export class ProjectStore {
     }));
   }
 
-  createInitialRecipe(recipeContent: Omit<SceneRecipe, 'version' | 'recipeId' | 'basedOnVersion'>): void {
-    const newRecipe: SceneRecipe = {
-      ...recipeContent,
-      recipeId: `recipe-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-      version: 1,
-      basedOnVersion: null,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-
-    const promptDoc = compilePromptDocument(newRecipe);
-
-    this.updateState(() => ({
-      status: 'RECIPE_READY',
-      sceneRecipes: [newRecipe],
-      recipeVersions: [{
-        recipe: newRecipe,
-        promptDocument: promptDoc,
-        createdAt: newRecipe.createdAt
-      }],
-      activeVersion: 1,
-      sceneRecipe: newRecipe,
-      promptDocument: promptDoc,
-      sceneAsset: null,
-    }));
-  }
-
   commitInitialRecipe(recipe: SceneRecipe): void {
     // 1. 执行 SceneRecipeSchema.safeParse
     const recipeCheck = SceneRecipeSchema.safeParse(recipe);
@@ -1035,37 +1008,24 @@ export class ProjectStore {
     
     // 1. Repair missing promptDocument in recipeVersions
     if (Array.isArray(sanitizedData.recipeVersions)) {
-      sanitizedData.recipeVersions = sanitizedData.recipeVersions.map((entry: any) => {
-        if (!entry) return entry;
+      const validVersions = [];
+      for (const entry of sanitizedData.recipeVersions) {
+        if (!entry || !entry.recipe) continue;
         let promptDoc = entry.promptDocument;
-        if (!promptDoc && entry.recipe) {
+        if (!promptDoc) {
           try {
             promptDoc = compilePromptDocument(entry.recipe);
           } catch (e) {
-            // fallback
+            // Compilation failed, discard this entry early
+            continue;
           }
         }
-        return {
+        validVersions.push({
           ...entry,
-          promptDocument: promptDoc || {
-            recipeId: entry.recipe?.recipeId || 'temp-id',
-            recipeVersion: entry.recipe?.version || 1,
-            compilerVersion: PROMPT_COMPILER_VERSION,
-            sections: {
-              taskAndReferences: 'task',
-              productMatching: 'matching',
-              sceneAndStyle: 'style',
-              cameraAndComposition: 'composition',
-              lightingAndDecoration: 'lighting',
-              outputConstraints: 'constraints'
-            },
-            fullPrompt: 'temp',
-            fullJson: '{}',
-            objectJson: { task: '{}', scene: '{}', composition: '{}', lighting: '{}', decoration: '{}', output: '{}' },
-            createdAt: new Date().toISOString()
-          }
-        };
-      });
+          promptDocument: promptDoc
+        });
+      }
+      sanitizedData.recipeVersions = validVersions;
     }
 
     // 2. Filter out invalid/illegal recipes from recipeVersions
@@ -1214,35 +1174,86 @@ export class ProjectStore {
         // Reconstruct sceneRecipes and recipeVersions to be 100% synchronized and consistent
         validVersions.sort((a, b) => a.recipe.version - b.recipe.version);
 
-        // Ensure version numbers are unique (Scenario F)
-        const uniqueVersions: typeof validVersions = [];
-        const seenVersions = new Set<number>();
+        // Group by version to check duplicates and potential conflicts (Scenario B / Requirement I)
+        const versionMap = new Map<number, typeof validVersions>();
         for (const v of validVersions) {
-          if (!seenVersions.has(v.recipe.version)) {
-            seenVersions.add(v.recipe.version);
-            uniqueVersions.push(v);
+          const list = versionMap.get(v.recipe.version) || [];
+          list.push(v);
+          versionMap.set(v.recipe.version, list);
+        }
+
+        const uniqueVersions: typeof validVersions = [];
+        let hasConflict = false;
+
+        for (const [ver, list] of versionMap.entries()) {
+          if (list.length === 1) {
+            uniqueVersions.push(list[0]);
+          } else {
+            // There are duplicates. Check if they are completely identical.
+            const first = list[0];
+            let allIdentical = true;
+            for (let i = 1; i < list.length; i++) {
+              const r1 = first.recipe;
+              const r2 = list[i].recipe;
+              if (
+                r1.recipeId !== r2.recipeId ||
+                r1.selectedDirectionId !== r2.selectedDirectionId ||
+                JSON.stringify(r1.task) !== JSON.stringify(r2.task) ||
+                JSON.stringify(r1.scene) !== JSON.stringify(r2.scene) ||
+                JSON.stringify(r1.composition) !== JSON.stringify(r2.composition) ||
+                JSON.stringify(r1.lighting) !== JSON.stringify(r2.lighting) ||
+                JSON.stringify(r1.decoration) !== JSON.stringify(r2.decoration) ||
+                JSON.stringify(r1.output) !== JSON.stringify(r2.output)
+              ) {
+                allIdentical = false;
+                break;
+              }
+            }
+
+            if (allIdentical) {
+              // Same content, deduplicate: just keep one
+              uniqueVersions.push(first);
+            } else {
+              // Conflict!
+              hasConflict = true;
+              break;
+            }
           }
         }
 
-        stateData.recipeVersions = uniqueVersions;
-        stateData.sceneRecipes = uniqueVersions.map(uv => uv.recipe);
+        if (hasConflict) {
+          // If conflict is found, rollback to DIRECTION_SELECTION and clear recipe history
+          stateData.status = 'DIRECTION_SELECTION';
+          stateData.sceneRecipe = null;
+          stateData.promptDocument = null;
+          stateData.activeVersion = null;
+          stateData.sceneRecipes = [];
+          stateData.recipeVersions = [];
+          stateData.sceneAsset = null;
+          stateData.matchReport = null;
+          stateData.recipeRequestStatus = 'idle';
+          stateData.recipeError = null;
+        } else {
+          stateData.recipeVersions = uniqueVersions;
+          stateData.sceneRecipes = uniqueVersions.map(uv => uv.recipe);
 
-        // Align the current sceneRecipe and promptDocument pointers
-        let targetVersion = stateData.activeVersion;
-        let matchedEntry = targetVersion !== null ? uniqueVersions.find(uv => uv.recipe.version === targetVersion) : undefined;
+          // Align the current sceneRecipe and promptDocument pointers
+          let targetVersion = stateData.activeVersion;
+          let matchedEntry = targetVersion !== null ? uniqueVersions.find(uv => uv.recipe.version === targetVersion) : undefined;
 
-        if (!matchedEntry) {
-          // Fallback to latest version
-          matchedEntry = uniqueVersions[uniqueVersions.length - 1];
-          targetVersion = matchedEntry.recipe.version;
-        }
+          if (!matchedEntry) {
+            // Fallback to latest version
+            matchedEntry = uniqueVersions[uniqueVersions.length - 1];
+            targetVersion = matchedEntry.recipe.version;
+          }
 
-        stateData.activeVersion = targetVersion;
-        stateData.sceneRecipe = matchedEntry.recipe;
-        stateData.promptDocument = matchedEntry.promptDocument;
+          stateData.activeVersion = targetVersion;
+          stateData.sceneRecipe = matchedEntry.recipe;
+          stateData.promptDocument = matchedEntry.promptDocument;
 
-        if (requiresRecipe && stateData.status === 'DIRECTION_SELECTION') {
-          stateData.status = 'RECIPE_READY';
+          if (requiresRecipe && stateData.status === 'DIRECTION_SELECTION') {
+            stateData.status = 'RECIPE_READY';
+          }
         }
       }
     }

@@ -51,7 +51,7 @@ describe('RecipePatch tests', () => {
     };
     store.importProduct(asset);
     store.setProductProfile(MOCK_RECIPE.productProfileSnapshot);
-    store.createInitialRecipe(MOCK_RECIPE);
+    store.commitInitialRecipe({ ...MOCK_RECIPE, recipeId: 'recipe-initial-v1', version: 1, basedOnVersion: null, createdAt: '2026-07-14T01:56:41-07:00', updatedAt: '2026-07-14T01:56:41-07:00' });
   });
 
   it('1. 未确认时不能应用 Patch (缺少 confirmed)', () => {

@@ -208,7 +208,14 @@ export default function App() {
   const guidedQuestionsRequestIdRef = useRef<number>(0);
   const sceneDirectionsRequestIdRef = useRef<number>(0);
   const recipeRequestIdRef = useRef<number>(0);
+  const recipeSubmitLockRef = useRef<boolean>(false);
   const mountedRef = useRef<boolean>(true);
+
+  const invalidateRecipeRequest = () => {
+    recipeRequestIdRef.current += 1;
+    recipeSubmitLockRef.current = false;
+    setLoading(false);
+  };
 
   const createAnswersFingerprint = (answers: GuidedAnswer[]): string =>
     JSON.stringify(
@@ -226,6 +233,7 @@ export default function App() {
       mountedRef.current = false;
       guidedQuestionsRequestIdRef.current += 1;
       sceneDirectionsRequestIdRef.current += 1;
+      invalidateRecipeRequest();
     };
   }, []);
 
@@ -344,7 +352,7 @@ export default function App() {
       setLocalPreviewUrl(url);
 
       // 5. Update Project Store state
-      recipeRequestIdRef.current += 1;
+      invalidateRecipeRequest();
       projectStore.importProduct(productAsset);
 
       // 6. Automatically save project to DB
@@ -390,6 +398,9 @@ export default function App() {
   };
 
   const handleClear = async () => {
+    guidedQuestionsRequestIdRef.current += 1;
+    sceneDirectionsRequestIdRef.current += 1;
+    invalidateRecipeRequest();
     if (state.productAsset) {
       await deleteProject(state.productAsset.persistedAssetRef);
     }
@@ -428,6 +439,7 @@ export default function App() {
     setLoading(true);
     setAnalyzingError(null);
     setIsConfirmed(false);
+    invalidateRecipeRequest();
 
     try {
       projectStore.transitionTo('ANALYZING_PRODUCT');
@@ -592,7 +604,7 @@ export default function App() {
 
     // Increment scene directions request ID to invalidate any in-flight requests
     sceneDirectionsRequestIdRef.current += 1;
-    recipeRequestIdRef.current += 1;
+    invalidateRecipeRequest();
 
     projectStore.updateState((s) => {
       const answers = [...s.guidedAnswers.filter(a => a.questionId !== questionId), {
@@ -616,7 +628,7 @@ export default function App() {
 
     // Increment scene directions request ID to invalidate any in-flight requests
     sceneDirectionsRequestIdRef.current += 1;
-    recipeRequestIdRef.current += 1;
+    invalidateRecipeRequest();
 
     projectStore.updateState((s) => {
       let answers = [...s.guidedAnswers];
@@ -802,36 +814,50 @@ export default function App() {
   const handleBackToReview = () => {
     guidedQuestionsRequestIdRef.current += 1;
     sceneDirectionsRequestIdRef.current += 1;
+    invalidateRecipeRequest();
     projectStore.transitionTo('PRODUCT_REVIEW');
   };
 
   const handleDirectionSelect = (directionId: string) => {
     const exists = (state.sceneDirections || []).some(d => d.id === directionId);
     if (!exists) return;
-    recipeRequestIdRef.current += 1;
+    invalidateRecipeRequest();
     projectStore.selectDirection(directionId);
   };
 
   const handleConfirmDirection = async () => {
-    if (!state.selectedDirectionId) return;
-    if (state.recipeRequestStatus === 'loading') return;
+    if (recipeSubmitLockRef.current) return;
+    recipeSubmitLockRef.current = true;
+
+    if (!state.selectedDirectionId) {
+      recipeSubmitLockRef.current = false;
+      return;
+    }
+    if (state.recipeRequestStatus === 'loading') {
+      recipeSubmitLockRef.current = false;
+      return;
+    }
 
     if (!state.productProfile) {
       setErrorMessage({ message: '缺少 ProductProfile', retryable: false });
+      recipeSubmitLockRef.current = false;
       return;
     }
     if (!state.guidedQuestions || state.guidedAnswers.length !== state.guidedQuestions.length) {
       setErrorMessage({ message: '必须完成所有引导问题', retryable: false });
+      recipeSubmitLockRef.current = false;
       return;
     }
     if (!state.sceneDirections || state.sceneDirections.length !== 3) {
       setErrorMessage({ message: '缺少 3 个场景方向', retryable: false });
+      recipeSubmitLockRef.current = false;
       return;
     }
 
     const directionExists = state.sceneDirections.some(d => d.id === state.selectedDirectionId);
     if (!directionExists) {
       setErrorMessage({ message: '选择的方向 ID 非法', retryable: false });
+      recipeSubmitLockRef.current = false;
       return;
     }
 
@@ -848,6 +874,12 @@ export default function App() {
 
     const requestId = ++recipeRequestIdRef.current;
     
+    // Save starting context variables
+    const startProductAssetId = state.productAsset?.id;
+    const startProfileAssetId = state.productProfile?.productAssetId;
+    const startAnswersFingerprint = createAnswersFingerprint(state.guidedAnswers);
+    const startSelectedDirectionId = state.selectedDirectionId;
+
     try {
       const adapter = new RealAdapter();
       const recipe = await adapter.createSceneRecipe({
@@ -859,7 +891,22 @@ export default function App() {
         selectedDirectionId: state.selectedDirectionId
       });
 
-      if (requestId !== recipeRequestIdRef.current) return;
+      // Verification before committing: read current state
+      const currState = projectStore.getState();
+      const currAnswersFingerprint = createAnswersFingerprint(currState.guidedAnswers);
+
+      const isValid = 
+        mountedRef.current === true &&
+        requestId === recipeRequestIdRef.current &&
+        currState.status === 'DIRECTION_SELECTION' &&
+        currState.productAsset?.id === startProductAssetId &&
+        currState.productProfile?.productAssetId === startProfileAssetId &&
+        currAnswersFingerprint === startAnswersFingerprint &&
+        currState.selectedDirectionId === startSelectedDirectionId;
+
+      if (!isValid) {
+        return;
+      }
 
       // Use unique store commit method
       projectStore.commitInitialRecipe(recipe);
@@ -883,8 +930,22 @@ export default function App() {
       }
 
     } catch (err: any) {
-      console.error('Failed to create recipe:', err);
       if (requestId !== recipeRequestIdRef.current) return;
+
+      const currState = projectStore.getState();
+      const currAnswersFingerprint = createAnswersFingerprint(currState.guidedAnswers);
+
+      const isValid = 
+        mountedRef.current === true &&
+        currState.status === 'DIRECTION_SELECTION' &&
+        currState.productAsset?.id === startProductAssetId &&
+        currState.productProfile?.productAssetId === startProfileAssetId &&
+        currAnswersFingerprint === startAnswersFingerprint &&
+        currState.selectedDirectionId === startSelectedDirectionId;
+
+      if (!isValid) return;
+
+      console.error('Failed to create recipe:', err);
       
       let errorMsg = '生成配方失败，请重试';
       if (err.message) {
@@ -902,6 +963,7 @@ export default function App() {
       setErrorMessage({ message: errorMsg, retryable: true });
     } finally {
       if (requestId === recipeRequestIdRef.current) {
+        recipeSubmitLockRef.current = false;
         setLoading(false);
       }
     }
@@ -949,7 +1011,7 @@ export default function App() {
   };
 
   const handleChangeSceneDirection = () => {
-    recipeRequestIdRef.current += 1;
+    invalidateRecipeRequest();
     projectStore.changeSceneDirection();
     setPatchSuccessMessage(null);
     setShowHistory(false);
@@ -958,7 +1020,7 @@ export default function App() {
   const handleRefreshDirections = async () => {
     if (!state.productProfile) return;
     setLoading(true);
-    recipeRequestIdRef.current += 1;
+    invalidateRecipeRequest();
     setSceneDirectionsRequestStatus('loading');
     setSceneDirectionsError(null);
     setErrorMessage(null);
@@ -1033,6 +1095,7 @@ export default function App() {
   };
 
   const handleBackToQuestions = () => {
+    invalidateRecipeRequest();
     projectStore.transitionTo('GUIDED_QUESTIONS');
   };
 

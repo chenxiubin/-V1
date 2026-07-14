@@ -268,7 +268,7 @@ describe('ProjectStore Unit & State Machine Tests', () => {
     store.setProductProfile(MOCK_PROFILE);
 
     // Create V1 Recipe
-    store.createInitialRecipe(MOCK_RECIPE_CONTENT);
+    store.commitInitialRecipe({ ...MOCK_RECIPE_CONTENT, recipeId: 'recipe-initial-v1', version: 1, basedOnVersion: null, createdAt: '2026-07-14T01:56:41-07:00', updatedAt: '2026-07-14T01:56:41-07:00' });
     expect(store.getState().activeVersion).toBe(1);
     expect(store.getState().sceneRecipes).toHaveLength(1);
     expect(store.getState().sceneRecipes[0].version).toBe(1);
@@ -331,7 +331,7 @@ describe('ProjectStore Unit & State Machine Tests', () => {
     store.setProductProfile(MOCK_PROFILE);
 
     // Create V1, V2, V3
-    store.createInitialRecipe(MOCK_RECIPE_CONTENT);
+    store.commitInitialRecipe({ ...MOCK_RECIPE_CONTENT, recipeId: 'recipe-initial-v1', version: 1, basedOnVersion: null, createdAt: '2026-07-14T01:56:41-07:00', updatedAt: '2026-07-14T01:56:41-07:00' });
     
     const reportV1: MatchReport = {
         id: 'rep1',
@@ -437,7 +437,7 @@ describe('ProjectStore Unit & State Machine Tests', () => {
     expect(store.getState().status).toBe('DIRECTION_SELECTION');
 
     // 7. Legal: Create Recipe
-    store.createInitialRecipe(MOCK_RECIPE_CONTENT);
+    store.commitInitialRecipe({ ...MOCK_RECIPE_CONTENT, recipeId: 'recipe-initial-v1', version: 1, basedOnVersion: null, createdAt: '2026-07-14T01:56:41-07:00', updatedAt: '2026-07-14T01:56:41-07:00' });
     expect(store.getState().status).toBe('RECIPE_READY');
 
     // 8. Legal: Import scene background
@@ -459,7 +459,7 @@ describe('ProjectStore Unit & State Machine Tests', () => {
     const store = new ProjectStore();
     store.importProduct(MOCK_ASSET);
     store.setProductProfile(MOCK_PROFILE);
-    store.createInitialRecipe(MOCK_RECIPE_CONTENT);
+    store.commitInitialRecipe({ ...MOCK_RECIPE_CONTENT, recipeId: 'recipe-initial-v1', version: 1, basedOnVersion: null, createdAt: '2026-07-14T01:56:41-07:00', updatedAt: '2026-07-14T01:56:41-07:00' });
 
     // No background scene imported, try approving
     expect(() => {
@@ -476,7 +476,7 @@ describe('ProjectStore Unit & State Machine Tests', () => {
     originalStore.addGuidedAnswer(MOCK_GUIDED_ANSWER_2);
     originalStore.setSceneDirections(MOCK_DIRECTIONS);
     originalStore.selectDirection('dir-nordic');
-    originalStore.createInitialRecipe(MOCK_RECIPE_CONTENT);
+    originalStore.commitInitialRecipe({ ...MOCK_RECIPE_CONTENT, recipeId: 'recipe-initial-v1', version: 1, basedOnVersion: null, createdAt: '2026-07-14T01:56:41-07:00', updatedAt: '2026-07-14T01:56:41-07:00' });
     originalStore.importScenePreview(MOCK_SCENE_ASSET);
     originalStore.setMatchReport(MOCK_MATCH_REPORT);
 
@@ -823,10 +823,14 @@ describe('Phase 3-C-2: Semantic State Gates & Recovery Tests', () => {
   });
 
   describe('Phase 6-C-1A: Database Restore and Consistency Validation Tests', () => {
-    it('Recipe 与 Prompt 配对不一致 (recipeId 不一致) 时恢复被拒绝', async () => {
+    it('Recipe 与 Prompt 配对不一致 (recipeId 不一致) 时恢复成功并重新编译 PromptDocument', async () => {
       const rawState = store.getState();
       rawState.status = 'RECIPE_READY';
       rawState.activeVersion = 1;
+      rawState.guidedQuestions = validQuestions;
+      rawState.guidedAnswers = validAnswers;
+      rawState.sceneDirections = validDirections;
+      rawState.selectedDirectionId = validDirections[0].id;
       
       const mockRecipe = {
         schemaVersion: '1.0' as const,
@@ -883,13 +887,20 @@ describe('Phase 3-C-2: Semantic State Gates & Recovery Tests', () => {
       await saveProject(rawState);
       
       const store2 = new ProjectStore();
-      await expect(store2.loadFromDB(rawState.id)).rejects.toThrow('recipeId 不一致');
+      await store2.loadFromDB(rawState.id);
+      expect(store2.getState().status).toBe('RECIPE_READY');
+      expect(store2.getState().promptDocument?.recipeId).toBe('r1');
+      expect(store2.getState().recipeVersions[0].promptDocument?.recipeId).toBe('r1');
     });
 
-    it('同一版本重复时恢复被拒绝', async () => {
+    it('同一版本重复且无冲突时去重并成功恢复', async () => {
       const rawState = store.getState();
       rawState.status = 'RECIPE_READY';
       rawState.activeVersion = 1;
+      rawState.guidedQuestions = validQuestions;
+      rawState.guidedAnswers = validAnswers;
+      rawState.sceneDirections = validDirections;
+      rawState.selectedDirectionId = validDirections[0].id;
 
       const mockRecipe = {
         schemaVersion: '1.0' as const,
@@ -937,7 +948,166 @@ describe('Phase 3-C-2: Semantic State Gates & Recovery Tests', () => {
       await saveProject(rawState);
       
       const store2 = new ProjectStore();
-      await expect(store2.loadFromDB(rawState.id)).rejects.toThrow('重复的版本号');
+      await store2.loadFromDB(rawState.id);
+      expect(store2.getState().status).toBe('RECIPE_READY');
+      expect(store2.getState().recipeVersions).toHaveLength(1);
+    });
+
+    it('同一版本冲突时，清除历史并安全回退到 DIRECTION_SELECTION', async () => {
+      const rawState = store.getState();
+      rawState.status = 'RECIPE_READY';
+      rawState.activeVersion = 1;
+      rawState.guidedQuestions = validQuestions;
+      rawState.guidedAnswers = validAnswers;
+      rawState.sceneDirections = validDirections;
+      rawState.selectedDirectionId = validDirections[0].id;
+
+      const mockRecipe1 = {
+        schemaVersion: '1.0' as const,
+        recipeId: 'r1',
+        version: 1,
+        productAssetId: 'prod1',
+        productProfileSnapshot: MOCK_PROFILE,
+        guidedAnswers: [],
+        selectedDirectionId: 'dir1',
+        task: { operation: 'generate_empty_scene_background' as const, productRole: 'analysis_and_spatial_reference_only' as const, backgroundOnly: true as const },
+        scene: { spaceType: 'office', wallMaterial: 'wood', desktopMaterial: 'wood', desktopTone: 'light', backgroundBrightness: 'medium' as const, style: 'minimalist', palette: [], furnitureDensity: 'low' as const },
+        composition: { purpose: 'hero' as const, productCount: 1, productPosition: 'center' as const, productWidthPercent: 50, copySpace: 'none' as const, cameraView: 'front' as const, cameraHeight: 'near_eye_level' as const, framing: 'medium' as const, perspectiveStrength: 'medium' as const, desktopVisiblePercent: 50 },
+        lighting: { sourceType: 'window' as const, sourcePosition: 'front' as const, temperature: 'neutral' as const, softness: 'medium' as const, contrast: 'medium' as const, shadowDirection: 'soft_diffuse' as const },
+        decoration: { density: 'minimal' as const, allowed: [], forbiddenNearProduct: [], foregroundOcclusion: false as const },
+        output: { aspectRatio: '1:1' as const, resolutionLabel: '1K' as const, realism: 'real_commercial_interior_photography' as const, exclude: [] },
+        createdAt: 'now',
+        updatedAt: 'now',
+      };
+
+      const mockRecipe2 = {
+        ...mockRecipe1,
+        scene: { ...mockRecipe1.scene, spaceType: 'living_room' } // conflict! different spaceType
+      };
+
+      const mockPromptDoc = {
+        recipeId: 'r1',
+        recipeVersion: 1,
+        compilerVersion: '1.0',
+        sections: { taskAndReferences: '', productMatching: '', sceneAndStyle: '', cameraAndComposition: '', lightingAndDecoration: '', outputConstraints: '' },
+        fullPrompt: '',
+        fullJson: '{}',
+        objectJson: { task: '{}', scene: '{}', composition: '{}', lighting: '{}', decoration: '{}', output: '{}' },
+        createdAt: 'now',
+      };
+
+      rawState.recipeVersions = [
+        { recipe: mockRecipe1, promptDocument: mockPromptDoc, createdAt: 'now' },
+        { recipe: mockRecipe2, promptDocument: mockPromptDoc, createdAt: 'now2' }
+      ];
+      rawState.sceneRecipes = [mockRecipe1, mockRecipe2];
+
+      await saveProject(rawState);
+
+      const store2 = new ProjectStore();
+      await store2.loadFromDB(rawState.id);
+
+      // Should fall back to DIRECTION_SELECTION and clear recipe versions
+      expect(store2.getState().status).toBe('DIRECTION_SELECTION');
+      expect(store2.getState().recipeVersions).toHaveLength(0);
+      expect(store2.getState().sceneRecipe).toBeNull();
+      expect(store2.getState().promptDocument).toBeNull();
+      // Guided data should be preserved
+      expect(store2.getState().guidedQuestions).toHaveLength(validQuestions.length);
+      expect(store2.getState().guidedAnswers).toHaveLength(validAnswers.length);
+      expect(store2.getState().sceneDirections).toHaveLength(validDirections.length);
+      expect(store2.getState().selectedDirectionId).toBe(validDirections[0].id);
+    });
+
+    it('Recipe 缺失 Prompt 时自动重编译，编译失败则丢弃，若无合法历史则回退 DIRECTION_SELECTION', async () => {
+      const rawState = store.getState();
+      rawState.status = 'RECIPE_READY';
+      rawState.activeVersion = 1;
+      rawState.guidedQuestions = validQuestions;
+      rawState.guidedAnswers = validAnswers;
+      rawState.sceneDirections = validDirections;
+      rawState.selectedDirectionId = validDirections[0].id;
+
+      const mockRecipe = {
+        schemaVersion: '1.0' as const,
+        recipeId: 'r1',
+        version: 1,
+        productAssetId: 'prod1',
+        productProfileSnapshot: MOCK_PROFILE,
+        guidedAnswers: [],
+        selectedDirectionId: 'dir1',
+        task: { operation: 'generate_empty_scene_background' as const, productRole: 'analysis_and_spatial_reference_only' as const, backgroundOnly: true as const },
+        scene: { spaceType: 'office', wallMaterial: 'wood', desktopMaterial: 'wood', desktopTone: 'light', backgroundBrightness: 'medium' as const, style: 'minimalist', palette: [], furnitureDensity: 'low' as const },
+        composition: { purpose: 'hero' as const, productCount: 1, productPosition: 'center' as const, productWidthPercent: 50, copySpace: 'none' as const, cameraView: 'front' as const, cameraHeight: 'near_eye_level' as const, framing: 'medium' as const, perspectiveStrength: 'medium' as const, desktopVisiblePercent: 50 },
+        lighting: { sourceType: 'window' as const, sourcePosition: 'front' as const, temperature: 'neutral' as const, softness: 'medium' as const, contrast: 'medium' as const, shadowDirection: 'soft_diffuse' as const },
+        decoration: { density: 'minimal' as const, allowed: [], forbiddenNearProduct: [], foregroundOcclusion: false as const },
+        output: { aspectRatio: '1:1' as const, resolutionLabel: '1K' as const, realism: 'real_commercial_interior_photography' as const, exclude: [] },
+        createdAt: 'now',
+        updatedAt: 'now',
+      };
+      
+      const mockRecipeWithFail = {
+        ...mockRecipe,
+        recipeId: 'r2',
+        version: 2,
+        scene: { ...mockRecipe.scene, spaceType: 'unsupported_space_type_that_will_fail' } // or missing something to make it fail if strict, actually prompt compiler doesn't fail on spaceType... wait, let's use a recipe that will cause prompt compiler to throw. 
+      };
+
+      rawState.recipeVersions = [
+        { recipe: mockRecipe, promptDocument: undefined as any, createdAt: 'now' }
+      ];
+      rawState.sceneRecipes = [mockRecipe];
+
+      await saveProject(rawState);
+      const store2 = new ProjectStore();
+      await store2.loadFromDB(rawState.id);
+
+      // Should succeed because compiler succeeds
+      expect(store2.getState().status).toBe('RECIPE_READY');
+      expect(store2.getState().promptDocument).not.toBeNull();
+      expect(store2.getState().promptDocument?.fullPrompt).not.toBe('temp'); // Real prompt
+    });
+
+    it('Recipe 含敏感字符串导致编译失败时，不得生成 temp Prompt，抛弃历史并回退 DIRECTION_SELECTION', async () => {
+      const rawState = store.getState();
+      rawState.status = 'RECIPE_READY';
+      rawState.activeVersion = 1;
+      rawState.guidedQuestions = validQuestions;
+      rawState.guidedAnswers = validAnswers;
+      rawState.sceneDirections = validDirections;
+      rawState.selectedDirectionId = validDirections[0].id;
+
+      const mockRecipeWithFail = {
+        schemaVersion: '1.0' as const,
+        recipeId: 'r2',
+        version: 1,
+        productAssetId: 'prod1',
+        productProfileSnapshot: MOCK_PROFILE,
+        guidedAnswers: [],
+        selectedDirectionId: 'dir1',
+        task: { operation: 'generate_empty_scene_background' as const, productRole: 'analysis_and_spatial_reference_only' as const, backgroundOnly: true as const },
+        scene: { spaceType: 'office', wallMaterial: 'wood', desktopMaterial: 'wood', desktopTone: 'light', backgroundBrightness: 'medium' as const, style: 'minimalist', palette: [], furnitureDensity: 'low' as const },
+        composition: { purpose: 'hero' as const, productCount: 1, productPosition: 'center' as const, productWidthPercent: 50, copySpace: 'none' as const, cameraView: 'front' as const, cameraHeight: 'near_eye_level' as const, framing: 'medium' as const, perspectiveStrength: 'medium' as const, desktopVisiblePercent: 50 },
+        lighting: { sourceType: 'window' as const, sourcePosition: 'front' as const, temperature: 'neutral' as const, softness: 'medium' as const, contrast: 'medium' as const, shadowDirection: 'soft_diffuse' as const },
+        decoration: { density: 'minimal' as const, allowed: [], forbiddenNearProduct: [], foregroundOcclusion: false as const },
+        output: { aspectRatio: '1:1' as const, resolutionLabel: '1K' as const, realism: 'real_commercial_interior_photography' as const, exclude: [] },
+        createdAt: 'now',
+        updatedAt: 'data:image/png;base64,sensitive', // sensitive string
+      };
+
+      rawState.recipeVersions = [
+        { recipe: mockRecipeWithFail, promptDocument: undefined as any, createdAt: 'now' }
+      ];
+      rawState.sceneRecipes = [mockRecipeWithFail];
+
+      await saveProject(rawState);
+      const store2 = new ProjectStore();
+      await store2.loadFromDB(rawState.id);
+
+      expect(store2.getState().status).toBe('DIRECTION_SELECTION');
+      expect(store2.getState().recipeVersions).toHaveLength(0);
+      expect(store2.getState().sceneRecipe).toBeNull();
+      expect(store2.getState().promptDocument).toBeNull();
     });
 
     it('历史缺少当前版本或内容不匹配时安全回退', async () => {

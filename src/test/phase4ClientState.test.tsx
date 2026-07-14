@@ -1,5 +1,9 @@
+// @vitest-environment happy-dom
 import 'fake-indexeddb/auto';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import React from 'react';
+import App, { projectStore } from '../App';
 import { ProjectStore } from '../store/projectStore';
 import { clearAllData, saveProject } from '../lib/db';
 import { PROMPT_COMPILER_VERSION } from '../services/ai/promptCompiler';
@@ -12,6 +16,55 @@ import {
   SceneRecipe,
   PromptDocument,
 } from '../types/schemas';
+
+// Mock RealAdapter to support integration test assertions
+const mockCreateSceneRecipeFn = vi.fn();
+
+vi.mock('../services/ai/realAdapter', () => {
+  return {
+    RealAdapter: class {
+      readonly mode = 'real';
+      async createSceneRecipe(params: any) {
+        return mockCreateSceneRecipeFn(params);
+      }
+      async planSceneDirections(params: any) {
+        return [];
+      }
+      async analyzeProduct(params: any) {
+        return {};
+      }
+    }
+  };
+});
+
+// Mock motion/react for happy-dom
+vi.mock('motion/react', () => {
+  const React = require('react');
+  const Dummy = React.forwardRef((props: any, ref: any) => {
+    const { initial, animate, exit, variants, transition, ...rest } = props;
+    return React.createElement('div', { ref, ...rest });
+  });
+  return {
+    motion: {
+      div: Dummy,
+      p: Dummy,
+      h1: Dummy,
+      h2: Dummy,
+      span: Dummy,
+      button: Dummy,
+    },
+    AnimatePresence: ({ children }: { children: any }) => React.createElement(React.Fragment, null, children),
+  };
+});
+
+// Mock URL APIs
+if (typeof window !== 'undefined') {
+  if (!window.URL) {
+    (window as any).URL = {};
+  }
+  window.URL.createObjectURL = vi.fn(() => 'blob:http://localhost/dummy');
+  window.URL.revokeObjectURL = vi.fn();
+}
 
 const MOCK_ASSET: ProductAsset = {
   id: 'prod-asset-123',
@@ -539,6 +592,56 @@ describe('Phase 4-C-1: Client State and Persistence (Robust Refactoring)', () =>
       expect(state.sceneRecipe?.recipeId).toBe('rec-2');
       expect(state.activeVersion).toBe(2);
     });
+
+    // 5G: Recovery Logic Compliance Checks
+    it('Scenario 5G: should satisfy all compliance assertions for recovery', async () => {
+      // 1. Spy on fetch and createSceneRecipe
+      const fetchSpy = vi.spyOn(global, 'fetch');
+      mockCreateSceneRecipeFn.mockClear();
+
+      const baseState = JSON.parse(JSON.stringify(store.getState()));
+
+      // Scenario with missing promptDocument to force local recompilation
+      const projectState = {
+        ...baseState,
+        id: 'compliance-project',
+        status: 'RECIPE_READY',
+        sceneRecipe: mockRecipe,
+        promptDocument: null, // missing
+        sceneRecipes: [mockRecipe],
+        recipeVersions: [{
+          recipe: mockRecipe,
+          promptDocument: null as any, // missing, triggers recompile
+          createdAt: mockRecipe.createdAt
+        }],
+        activeVersion: 1
+      };
+
+      await saveProject(projectState);
+
+      const loadStore = new ProjectStore();
+      await loadStore.loadFromDB('compliance-project');
+
+      const state = loadStore.getState();
+
+      // Assertions
+      // - 恢复过程中 RealAdapter.createSceneRecipe 调用次数为 0
+      expect(mockCreateSceneRecipeFn).toHaveBeenCalledTimes(0);
+
+      // - fetch 调用次数为 0
+      expect(fetchSpy).toHaveBeenCalledTimes(0);
+
+      // - 本地重新编译不得产生重复 V1 (recipeVersions has exactly 1 entry, and activeVersion is V1)
+      expect(state.recipeVersions).toHaveLength(1);
+      expect(state.recipeVersions[0].recipe.version).toBe(1);
+
+      // - recipeVersions 始终是唯一权威历史; sceneRecipes 必须由 recipeVersions 派生或严格同步
+      expect(state.sceneRecipes).toHaveLength(1);
+      expect(state.sceneRecipes[0]).toEqual(state.recipeVersions[0].recipe);
+      expect(state.sceneRecipes.map(r => r.recipeId)).toEqual(state.recipeVersions.map(v => v.recipe.recipeId));
+
+      fetchSpy.mockRestore();
+    });
   });
 
   // 6. 竞态延迟场景
@@ -573,5 +676,291 @@ describe('Phase 4-C-1: Client State and Persistence (Robust Refactoring)', () =>
     // Run second response
     commitAttempt2();
     expect(store.getState().sceneRecipe?.recipeId).toBe('rec-2'); // Success from active response!
+  });
+
+  // 7. Phase 4 App Integration Tests
+  describe('Phase 4 App Integration Tests', () => {
+    const mockRecipeResult: SceneRecipe = {
+      schemaVersion: '1.0' as const,
+      recipeId: 'recipe-test-v1',
+      version: 1,
+      basedOnVersion: null,
+      productAssetId: MOCK_ASSET.id,
+      productProfileSnapshot: MOCK_PROFILE,
+      guidedAnswers: MOCK_ANSWERS,
+      selectedDirectionId: 'd1',
+      task: {
+        operation: 'generate_empty_scene_background' as const,
+        productRole: 'analysis_and_spatial_reference_only' as const,
+        backgroundOnly: true as const,
+      },
+      scene: {
+        spaceType: 'study',
+        wallMaterial: 'concrete',
+        desktopMaterial: 'wood',
+        desktopTone: 'light',
+        backgroundBrightness: 'medium_light',
+        style: 'nordic',
+        palette: ['#FFFFFF'],
+        furnitureDensity: 'low' as const,
+      },
+      composition: {
+        purpose: 'hero' as const,
+        productCount: 1,
+        productPosition: 'center' as const,
+        productWidthPercent: 50,
+        copySpace: 'none' as const,
+        cameraView: 'front' as const,
+        cameraHeight: 'near_eye_level' as const,
+        framing: 'medium' as const,
+        perspectiveStrength: 'low' as const,
+        desktopVisiblePercent: 30,
+      },
+      lighting: {
+        sourceType: 'window' as const,
+        sourcePosition: 'upper_left' as const,
+        temperature: 'neutral' as const,
+        softness: 'soft' as const,
+        contrast: 'medium' as const,
+        shadowDirection: 'rear_right' as const,
+      },
+      decoration: {
+        density: 'minimal' as const,
+        allowed: ['plant'],
+        forbiddenNearProduct: ['water'],
+        foregroundOcclusion: false as const,
+      },
+      output: {
+        aspectRatio: '1:1' as const,
+        resolutionLabel: '4K' as const,
+        realism: 'real_commercial_interior_photography' as const,
+        exclude: ['product', 'person', 'hands', 'text', 'logo', 'watermark'],
+      },
+      createdAt: '2026-07-10T03:15:10-07:00',
+      updatedAt: '2026-07-10T03:15:10-07:00',
+    };
+
+    beforeEach(async () => {
+      vi.restoreAllMocks();
+      await clearAllData();
+      projectStore.reset();
+      
+      // Initialize state to DIRECTION_SELECTION
+      act(() => {
+        projectStore.updateState(() => ({
+          status: 'DIRECTION_SELECTION',
+          productAsset: MOCK_ASSET,
+          productProfile: MOCK_PROFILE,
+          guidedQuestions: MOCK_QUESTIONS,
+          guidedAnswers: MOCK_ANSWERS,
+          sceneDirections: MOCK_DIRECTIONS,
+          selectedDirectionId: 'd1',
+        }));
+      });
+    });
+
+    it('1. 点击确认方向只产生一次 createSceneRecipe (防连击机制)', async () => {
+      let resolveRecipe: any;
+      const promise = new Promise((resolve) => {
+        resolveRecipe = resolve;
+      });
+      mockCreateSceneRecipeFn.mockReturnValue(promise);
+
+      render(<App />);
+
+      const btn = screen.getByText('确认这个方向');
+      
+      // First click
+      await act(async () => {
+        fireEvent.click(btn);
+      });
+      // Wait for state to be loading
+      await waitFor(() => expect(projectStore.getState().recipeRequestStatus).toBe('loading'));
+      
+      // Second click should be ignored
+      await act(async () => {
+        fireEvent.click(btn);
+      });
+
+      expect(mockCreateSceneRecipeFn).toHaveBeenCalledTimes(1);
+
+      // Cleanup
+      await act(async () => {
+        resolveRecipe(mockRecipeResult);
+      });
+    });
+
+    it('2. 第一次请求 pending 时切换方向, 迟到成功不得进入 RECIPE_READY, 迟到失败不得覆盖', async () => {
+      let resolveRecipe: any;
+      const promise = new Promise((resolve) => {
+        resolveRecipe = resolve;
+      });
+      mockCreateSceneRecipeFn.mockReturnValue(promise);
+
+      render(<App />);
+
+      // Start first request
+      await act(async () => {
+        fireEvent.click(screen.getByText('确认这个方向'));
+      });
+
+      expect(projectStore.getState().recipeRequestStatus).toBe('loading');
+
+      // User switches direction while pending
+      await act(async () => {
+        fireEvent.click(screen.getByText('现代极简书房')); // click d2
+      });
+
+      expect(projectStore.getState().selectedDirectionId).toBe('d2');
+
+      // Now first request finishes (late success)
+      await act(async () => {
+        resolveRecipe(mockRecipeResult);
+      });
+
+      // Status should remain DIRECTION_SELECTION, not transition to RECIPE_READY because first request was stale
+      expect(projectStore.getState().status).toBe('DIRECTION_SELECTION');
+      expect(projectStore.getState().sceneRecipe).toBeNull();
+    });
+
+    it('3. 请求 pending 时返回修改答案, 迟到成功不得写入 Recipe', async () => {
+      let resolveRecipe: any;
+      const promise = new Promise((resolve) => {
+        resolveRecipe = resolve;
+      });
+      mockCreateSceneRecipeFn.mockReturnValue(promise);
+
+      const commitSpy = vi.spyOn(projectStore, 'commitInitialRecipe');
+
+      render(<App />);
+
+      await act(async () => {
+        fireEvent.click(screen.getByText('确认这个方向'));
+      });
+
+      // User returns to questions using actual UI button
+      await act(async () => {
+        fireEvent.click(screen.getByText('返回修改答案'));
+      });
+
+      // Resolve stale request
+      await act(async () => {
+        resolveRecipe(mockRecipeResult);
+      });
+
+      expect(projectStore.getState().status).toBe('GUIDED_QUESTIONS');
+      expect(projectStore.getState().sceneRecipe).toBeNull();
+      expect(commitSpy).not.toHaveBeenCalled();
+
+      commitSpy.mockRestore();
+    });
+
+    it('4. 请求 pending 时点击返回产品分析报告, 迟到成功不得写入', async () => {
+      let resolveRecipe: any;
+      const promise = new Promise((resolve) => {
+        resolveRecipe = resolve;
+      });
+      mockCreateSceneRecipeFn.mockReturnValue(promise);
+
+      render(<App />);
+
+      await act(async () => {
+        fireEvent.click(screen.getByText('确认这个方向'));
+      });
+
+      // User clicks "返回修改答案" to go back to GUIDED_QUESTIONS
+      await act(async () => {
+        fireEvent.click(screen.getByText('返回修改答案'));
+      });
+
+      // Now user clicks "返回分析报告" to go back to PRODUCT_REVIEW
+      await act(async () => {
+        const buttons = screen.getAllByText('返回分析报告');
+        fireEvent.click(buttons[0]);
+      });
+
+      // Resolve stale recipe request
+      await act(async () => {
+        resolveRecipe(mockRecipeResult);
+      });
+
+      // Should be in PRODUCT_REVIEW
+      expect(projectStore.getState().status).toBe('PRODUCT_REVIEW');
+      expect(projectStore.getState().sceneRecipe).toBeNull();
+    });
+
+    it('5. 请求 pending 时清空项目, 迟到成功后状态仍为 EMPTY', async () => {
+      let resolveRecipe: any;
+      const promise = new Promise((resolve) => {
+        resolveRecipe = resolve;
+      });
+      mockCreateSceneRecipeFn.mockReturnValue(promise);
+
+      render(<App />);
+
+      await act(async () => {
+        fireEvent.click(screen.getByText('确认这个方向'));
+      });
+
+      // User clears project
+      await act(async () => {
+        fireEvent.click(screen.getByText('清空当前项目'));
+      });
+      
+      await act(async () => {
+        fireEvent.click(screen.getByText('确认'));
+      });
+
+      // Resolve stale request
+      await act(async () => {
+        resolveRecipe(mockRecipeResult);
+      });
+
+      expect(projectStore.getState().status).toBe('EMPTY');
+      expect(projectStore.getState().sceneRecipe).toBeNull();
+    });
+
+    it('6. persistToDB 失败时真实 handler 回滚 并保留上下文和显示中文错误', async () => {
+      let resolveRecipe: any;
+      const promise = new Promise((resolve) => {
+        resolveRecipe = resolve;
+      });
+      mockCreateSceneRecipeFn.mockReturnValue(promise);
+
+      // Mock persistToDB to fail
+      const persistSpy = vi.spyOn(projectStore, 'persistToDB').mockRejectedValue(new Error('Save database error'));
+
+      render(<App />);
+
+      await act(async () => {
+        fireEvent.click(screen.getByText('确认这个方向'));
+      });
+
+      // Resolve recipe creation
+      await act(async () => {
+        resolveRecipe(mockRecipeResult);
+      });
+
+      // Should rollback to DIRECTION_SELECTION
+      expect(projectStore.getState().status).toBe('DIRECTION_SELECTION');
+      
+      // Preserve original context
+      expect(projectStore.getState().productAsset?.id).toBe(MOCK_ASSET.id);
+      expect(projectStore.getState().productProfile?.productAssetId).toBe(MOCK_PROFILE.productAssetId);
+      expect(projectStore.getState().guidedQuestions).toHaveLength(MOCK_QUESTIONS.length);
+      expect(projectStore.getState().guidedAnswers).toHaveLength(MOCK_ANSWERS.length);
+      expect(projectStore.getState().sceneDirections).toHaveLength(MOCK_DIRECTIONS.length);
+
+      // Recipe / prompt pointers should be empty / null
+      expect(projectStore.getState().sceneRecipe).toBeNull();
+      expect(projectStore.getState().promptDocument).toBeNull();
+      expect(projectStore.getState().recipeVersions).toHaveLength(0);
+
+      // Verify Chinese save failure message is displayed
+      const errorText = screen.queryByText(/场景配方保存失败，请重新尝试/);
+      expect(errorText).not.toBeNull();
+
+      persistSpy.mockRestore();
+    });
   });
 });
