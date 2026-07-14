@@ -32,97 +32,84 @@ export class NotImplementedError extends Error {
 }
 
 async function parseResponseSafe(response: Response, defaultMessage: string): Promise<any> {
+  // Read response body as text first to handle HTML intercepts safely
+  let text = '';
+  if (response && typeof response.text === 'function') {
+    text = await response.text();
+  } else if (response && typeof response.json === 'function') {
+    try {
+      const data = await response.json();
+      text = typeof data === 'string' ? data : JSON.stringify(data);
+    } catch {
+      text = '';
+    }
+  }
+  const trimmedText = text.trim();
+  const lowerText = trimmedText.toLowerCase();
+
+  // High sensitivity HTML check to prevent iFrame/network proxy redirects from crashing JSON parser
+  if (lowerText.includes('<!doctype') || lowerText.includes('<html') || lowerText.includes('<body')) {
+    const err = new Error('网络拦截或服务端异常：请求接口返回了 HTML 页面。这通常是由于未登录、第三方拦截或服务端路由未就绪引起的。');
+    (err as any).code = 'NETWORK_INTERCEPTED';
+    (err as any).status = 502;
+    (err as any).retryable = true;
+    throw err;
+  }
+
   const contentType = (response.headers && typeof response.headers.get === 'function')
     ? response.headers.get('Content-Type') || ''
     : 'application/json';
   const isJson = contentType.includes('application/json');
 
   if (!response.ok) {
-    if (isJson) {
-      let errData;
-      try {
-        errData = await response.json();
-      } catch (e) {
-        const text = await response.text();
-        const firstChars = text.substring(0, 300).toLowerCase();
-        if (response.status === 504) {
-          const err = new Error('网关超时（504 Gateway Timeout），大模型无响应，请重试。');
-          (err as any).code = 'GATEWAY_TIMEOUT';
-          (err as any).retryable = true;
-          throw err;
-        } else if (response.status === 429) {
-          const err = new Error('当前项目的 Gemini 免费请求额度已达到上限，请稍后重试或检查项目额度。');
-          (err as any).code = 'GEMINI_QUOTA_EXHAUSTED';
-          (err as any).retryable = true;
-          throw err;
-        } else if (response.status === 503) {
-          const err = new Error('大模型服务暂时不可用（503 Service Unavailable），请稍后重试。');
-          (err as any).code = 'SERVICE_UNAVAILABLE';
-          (err as any).retryable = true;
-          throw err;
-        } else if (firstChars.includes('<!doctype') || firstChars.includes('<html>')) {
-          const err = new Error('服务端路由未就绪或接口响应异常，请联系系统管理员检查后台服务。');
-          (err as any).code = 'API_RESPONSE_HTML_FALLBACK';
-          (err as any).retryable = false;
-          throw err;
-        }
-        const err = new Error(`请求失败，状态码: ${response.status}`);
-        (err as any).code = 'SERVER_ERROR';
-        (err as any).retryable = false;
-        throw err;
-      }
-      const serverErr = new Error(errData.message || defaultMessage);
-      (serverErr as any).code = errData.code || 'SERVER_ERROR';
-      (serverErr as any).retryable = typeof errData.retryable === 'boolean' ? errData.retryable : false;
-      throw serverErr;
-    } else {
-      const text = await response.text();
-      const firstChars = text.substring(0, 300).toLowerCase();
-      if (response.status === 504) {
-        const err = new Error('网关超时（504 Gateway Timeout），大模型无响应，请重试。');
-        (err as any).code = 'GATEWAY_TIMEOUT';
-        (err as any).retryable = true;
-        throw err;
-      } else if (response.status === 429) {
-        const err = new Error('当前项目的 Gemini 免费请求额度已达到上限，请稍后重试或检查项目额度。');
-          (err as any).code = 'GEMINI_QUOTA_EXHAUSTED';
-        (err as any).retryable = true;
-        throw err;
-      } else if (response.status === 503) {
-        const err = new Error('大模型服务暂时不可用（503 Service Unavailable），请稍后重试。');
-        (err as any).code = 'SERVICE_UNAVAILABLE';
-        (err as any).retryable = true;
-        throw err;
-      } else if (firstChars.includes('<!doctype') || firstChars.includes('<html>')) {
-        const err = new Error('服务端路由未就绪或接口响应异常，请联系系统管理员检查后台服务。');
-        (err as any).code = 'SERVER_ROUTE_MISSING';
-        (err as any).retryable = false;
-        throw err;
-      }
-      const err = new Error(`请求失败，状态码: ${response.status}，响应内容不符合JSON格式。`);
-      (err as any).code = 'API_RESPONSE_INVALID_CONTENT_TYPE';
-      (err as any).retryable = false;
+    if (response.status === 504) {
+      const err = new Error('网关超时（504 Gateway Timeout），大模型无响应，请重试。');
+      (err as any).code = 'GATEWAY_TIMEOUT';
+      (err as any).retryable = true;
+      throw err;
+    } else if (response.status === 429) {
+      const err = new Error('当前项目的 Gemini 免费请求额度已达到上限，请稍后重试或检查项目额度。');
+      (err as any).code = 'GEMINI_QUOTA_EXHAUSTED';
+      (err as any).retryable = true;
+      throw err;
+    } else if (response.status === 503) {
+      const err = new Error('大模型服务暂时不可用（503 Service Unavailable），请稍后重试。');
+      (err as any).code = 'SERVICE_UNAVAILABLE';
+      (err as any).retryable = true;
       throw err;
     }
-  }
 
-  // response is OK
-  if (!isJson) {
-    const text = await response.text();
-    const firstChars = text.substring(0, 300).toLowerCase();
-    if (firstChars.includes('<!doctype') || firstChars.includes('<html>')) {
-      const err = new Error('服务端路由未就绪或接口响应异常，请联系系统管理员检查后台服务。');
-      (err as any).code = 'API_RESPONSE_HTML_FALLBACK';
-      (err as any).retryable = false;
-      throw err;
+    // Try parsing the error payload as JSON if marked as isJson or looks like JSON
+    if (isJson || (trimmedText.startsWith('{') && trimmedText.endsWith('}'))) {
+      let parsedErrData: any = null;
+      try {
+        parsedErrData = JSON.parse(trimmedText);
+      } catch (e) {
+        // Fallback for failed JSON parse of non-JSON error content
+      }
+      if (parsedErrData) {
+        const serverErr = new Error(parsedErrData.message || defaultMessage);
+        (serverErr as any).code = parsedErrData.code || 'SERVER_ERROR';
+        (serverErr as any).retryable = typeof parsedErrData.retryable === 'boolean' ? parsedErrData.retryable : false;
+        throw serverErr;
+      }
     }
-    const err = new Error('期望 JSON 响应，但服务端返回了非 JSON 格式内容。');
-    (err as any).code = 'API_RESPONSE_INVALID_CONTENT_TYPE';
+
+    const err = new Error(`请求失败，状态码: ${response.status}，响应内容: ${trimmedText.substring(0, 100)}`);
+    (err as any).code = 'SERVER_ERROR';
     (err as any).retryable = false;
     throw err;
   }
 
-  return response.json();
+  // response is OK
+  try {
+    return JSON.parse(trimmedText);
+  } catch (err: any) {
+    const jsonErr = new Error('期望 JSON 响应，但服务端返回了非 JSON 格式内容。');
+    (jsonErr as any).code = 'API_RESPONSE_INVALID_CONTENT_TYPE';
+    (jsonErr as any).retryable = false;
+    throw jsonErr;
+  }
 }
 
 async function resizeImageClientSide(blob: Blob, originalWidth: number, originalHeight: number, targetMax: number): Promise<Blob> {

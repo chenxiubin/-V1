@@ -7,7 +7,8 @@ import {
   SceneDirection,
   SceneDirectionSchema,
   AnalyzeMatchInput,
-  MatchReport
+  MatchReport,
+  RecipeBodySchema
 } from '../../src/types/schemas.js';
 import { GeminiClient, DefaultGeminiClient } from './geminiProductAnalyzer.js';
 
@@ -184,8 +185,7 @@ const RECIPE_RESPONSE_SCHEMA = {
       properties: {
         density: { type: Type.STRING },
         allowed: { type: Type.ARRAY, items: { type: Type.STRING } },
-        forbiddenNearProduct: { type: Type.ARRAY, items: { type: Type.STRING } },
-        foregroundOcclusion: { type: Type.BOOLEAN }
+        forbiddenNearProduct: { type: Type.ARRAY, items: { type: Type.STRING } }
       },
       required: ["density", "allowed", "forbiddenNearProduct"]
     },
@@ -750,7 +750,7 @@ export class GeminiScenePlannerService {
 
     const client = this.getClient();
     const modelName = process.env.GEMINI_ANALYSIS_MODEL || 'gemini-3.5-flash';
-    const timeoutMs = Number(process.env.GEMINI_ANALYSIS_TIMEOUT_MS) || 30000;
+    const timeoutMs = Number(process.env.GEMINI_RECIPE_TIMEOUT_MS) || 120000;
 
     let attempts = 0;
     let lastError: any = null;
@@ -802,24 +802,16 @@ export class GeminiScenePlannerService {
           continue;
         }
 
-        if (!parsed.scene?.spaceType) {
-          throw new Error('scene.spaceType is required');
+        // Validate the structure with RecipeBodySchema
+        const checkBody = RecipeBodySchema.safeParse(parsed);
+        if (!checkBody.success) {
+          const errMsg = checkBody.error.issues.map(issue => `${issue.path.join('.')}: ${issue.message}`).join(', ');
+          feedbackPrompt = `Recipe structure verification failed: ${errMsg}`;
+          lastError = new Error(feedbackPrompt);
+          continue;
         }
 
-        if (typeof parsed.composition?.productCount !== 'number' || !Number.isInteger(parsed.composition.productCount) || parsed.composition.productCount < 1) {
-          throw new Error('productCount must be a positive integer');
-        }
-        if (typeof parsed.composition?.productWidthPercent !== 'number' || parsed.composition.productWidthPercent < 1 || parsed.composition.productWidthPercent > 100 || !Number.isFinite(parsed.composition.productWidthPercent)) {
-          throw new Error('productWidthPercent must be a finite number between 1 and 100');
-        }
-        if (typeof parsed.composition?.desktopVisiblePercent !== 'number' || parsed.composition.desktopVisiblePercent < 0 || parsed.composition.desktopVisiblePercent > 100 || !Number.isFinite(parsed.composition.desktopVisiblePercent)) {
-          throw new Error('desktopVisiblePercent must be a finite number between 0 and 100');
-        }
-        if (parsed.decoration?.foregroundOcclusion === true) {
-          throw new Error('foregroundOcclusion must be false');
-        }
-
-        // Output exclude categories validation on parsed.output FIRST to ensure retry/feedback triggers correctly on raw model output
+        // Custom output exclude categories validation on parsed.output FIRST to ensure retry/feedback triggers correctly on raw model output
         const rawExcludeStr = (parsed.output?.exclude || []).join(' ').toLowerCase();
         const rawMissingCategories = [];
         if (!/(product|产品|商品|台历)/.test(rawExcludeStr)) rawMissingCategories.push('product');
@@ -829,7 +821,9 @@ export class GeminiScenePlannerService {
         if (!/(logo|标志|品牌标识)/.test(rawExcludeStr)) rawMissingCategories.push('logo');
         if (!/(watermark|水印)/.test(rawExcludeStr)) rawMissingCategories.push('watermark');
         if (rawMissingCategories.length > 0) {
-          throw new Error('output.exclude is missing required categories: ' + rawMissingCategories.join(', '));
+          feedbackPrompt = 'output.exclude is missing required categories: ' + rawMissingCategories.join(', ');
+          lastError = new Error(feedbackPrompt);
+          continue;
         }
 
         // Auto-complete output.exclude categories (for absolute backend safety on successful validation path)
@@ -885,19 +879,6 @@ export class GeminiScenePlannerService {
           updatedAt: new Date().toISOString()
         };
 
-        // Output exclude categories validation
-        const checkExcludeStr = (recipe.output.exclude || []).join(' ').toLowerCase();
-        const missingCategories = [];
-        if (!/(product|产品|商品|台历)/.test(checkExcludeStr)) missingCategories.push('product');
-        if (!/(person|people|human|人物|人像)/.test(checkExcludeStr)) missingCategories.push('person');
-        if (!/(hand|hands|手部|双手|手掌|手指|人物手部|(?<![机册工])手(?![机册工]))/.test(checkExcludeStr)) missingCategories.push('hands');
-        if (!/(text|word|lettering|文字|文案|字符)/.test(checkExcludeStr)) missingCategories.push('text');
-        if (!/(logo|标志|品牌标识)/.test(checkExcludeStr)) missingCategories.push('logo');
-        if (!/(watermark|水印)/.test(checkExcludeStr)) missingCategories.push('watermark');
-        if (missingCategories.length > 0) {
-          throw new Error('output.exclude is missing required categories: ' + missingCategories.join(', '));
-        }
-
         // Recursive sensitive string scan
         scanForSensitiveStrings(recipe);
 
@@ -917,7 +898,7 @@ export class GeminiScenePlannerService {
     }
 
     const parseErr = new Error(`无法生成合法的 Recipe，多次尝试后失败: ${lastError?.message}`);
-    (parseErr as any).code = 'GEMINI_PARSE_FAILED';
+    (parseErr as any).code = 'GEMINI_RECIPE_PARSE_FAILED';
     (parseErr as any).retryable = false;
     throw parseErr;
   }

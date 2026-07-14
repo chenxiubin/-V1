@@ -259,6 +259,16 @@ export const CreateRecipeInputSchema = z.object({
 });
 export type CreateRecipeInput = z.infer<typeof CreateRecipeInputSchema>;
 
+export const RecipeBodySchema = z.object({
+  scene: RecipeSceneSchema,
+  composition: RecipeCompositionSchema,
+  lighting: RecipeLightingSchema,
+  decoration: RecipeDecorationSchema.omit({ foregroundOcclusion: true }),
+  output: RecipeOutputSchema.omit({ realism: true }),
+  inheritance: RecipeInheritanceSchema.optional(),
+});
+export type RecipeBody = z.infer<typeof RecipeBodySchema>;
+
 // ==========================================
 // Prompt Document Schemas
 // ==========================================

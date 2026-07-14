@@ -4,9 +4,9 @@
 
 ## 1. 当前状态
 
-- 当前Phase：Phase 2 分析接口与 UI 健壮性修复加固完成
-- 当前分支/检查点：Phase 2 Analysis Robustness & UI Test Regression Passed
-- 最后更新时间：2026-07-13T03:32:00-07:00
+- 当前Phase：Phase 4-A-2 修复与全量测试通过 / Phase 4-A 阶段圆满结束
+- 当前分支/检查点：Phase 4-A SceneRecipe Server-side Creation Complete
+- 最后更新时间：2026-07-13T23:41:55-07:00
 - 当前是否可构建：是
 - 当前是否可打开预览：是
 
@@ -35,13 +35,13 @@
     - 当前代码默认值：`gemini-3.5-flash`
     - 特别说明：真实 Gemini 图片分析已通过用户界面验证；本次未记录服务端实际生效的模型名称，因此不能确认调用使用的是默认值 gemini-3.5-flash。
   - **全量测试结果**：修改共享 Schema 和新增针对 uncertainties[].reason 语言约束的测试用例后，运行全量 `npm run test`（10 个测试文件，共 75 项测试）全部通过，退出码为 0，并且 stderr 中无 React `act` 警告或其他异常。
-- **Phase 4-A**：SceneRecipe 服务端真实创建链路与强校验体系：
-  - **CreateRecipeInput 契约完全确立**：前端输入参数通过 `CreateRecipeInputSchema` 强约束，包含 `productAssetId`, `productProfileSnapshot`, `guidedQuestions`, `guidedAnswers`, `sceneDirections`, `selectedDirectionId`。
-  - **服务端可信注入与防篡改**：所有重要固定/派生字段（如 `schemaVersion`, `recipeId`, `version`, `productAssetId`, `productProfileSnapshot`, `guidedAnswers`, `selectedDirectionId`, `task`, `createdAt`, `updatedAt`）全部由 Node.js 服务端进行安全强注入，模型返回的任何相同名称的固定字段直接在服务端验证后修正/忽略，防止恶意或不稳定的字段篡改。
-  - **严格入参防伪造校验**：增加产品一致性拦截，若 `productAssetId` 与 Snapshot `productAssetId` 不一致、或者选中的方向 ID 在 3 个备选方向之外，API 端点会安全拒绝请求并返回 `PRODUCT_ASSET_MISMATCH` 或 `INVALID_SELECTED_ID` 等统一样式错误，不发出任何 Gemini 计费调用。
-  - **引导问答与场景方向强一致校验**：对 `guidedQuestions` 和 `guidedAnswers` 进行题数（2-5题）、选项数（2-3项）、唯一性及覆盖度的完美性校验，对 `sceneDirections` 进行 3 个方向及 1 个推荐属性的运行时深度校验。
-  - **健壮的双层容错与敏感词沙箱**：集成 AI 词汇强校验，防止大模型返回 API 密钥、sk-、localhost、Base64 或本地文件路径，单次重试依然不合规时回退到 `GEMINI_PARSE_FAILED` 并保留原状态。
-  - **40 个专门测试用例通过**：高覆盖度、精细化地通过了 `/api/ai/scene-recipe` 的所有功能、边界、强校验及沙箱防御，完美闭环并具备极致健壮性。
+- **Phase 4-A**：SceneRecipe 服务端真实创建链路与强校验体系（Phase 4-A-2 修复完成 / 阶段圆满结束）：
+  - **CreateRecipeInput 契约完全确立**：前端输入参数通过 `CreateRecipeInputSchema` 强约束，在 API 最入口处使用 `safeParse`，杜绝任何旧参数兼容和 fallback 门禁，字段缺少任意一个立即返回 400 且零调用 Gemini。
+  - **服务端可信注入与防篡改**：所有固定/派生字段（如 `schemaVersion`, `recipeId`, `version`, `productAssetId`, `productProfileSnapshot`, `guidedAnswers`, `selectedDirectionId`, `task`, `createdAt`, `updatedAt`）全部由 Node.js 服务端进行安全强注入。
+  - **RecipeBodySchema 校验与单次 Repair**：定义了精简的 `RecipeBodySchema` 并彻底移除 `foregroundOcclusion`（改由服务端直接注入 `false`），并在每次大模型响应后通过该 Schema 强校验 Zod 枚举/字段完整度，单次失败后支持一次 Repair，第二次仍失败返回特定的 `GEMINI_RECIPE_PARSE_FAILED` 错误。
+  - **精细超时配置与中断支持**：引入了全新的 `GEMINI_RECIPE_TIMEOUT_MS` 配置（默认 `120000`ms）替代原有的 Analysis 超时参数，支持底层请求的自动 cancellation。
+  - **RealAdapter 强特征 JSON 拦截**：增加对网络拦截 HTML 响应的高敏感检测，若包含 `<!doctype`, `<html`, `<body` 时直接触发强特征的 `NETWORK_INTERCEPTED` 错误，杜绝 JSON.parse 崩溃。
+  - **测试套件与物理清理**：完成测试重写，提供高覆盖度、高保真的测试结果，并对工作区内所有的临时 `.cjs` 和 `update-routes.js` 文件执行了物理清理。
 - **Phase 7-B**：TemplateSuite 基础系统设计与开发：
   - **核心数据模型与契约安全**：对齐 Phase 7-A-2 架构设计，在 Zod 模式层及 TypeScript 侧确立了 `TemplateSuite`、`TemplateVariant`、`Slot`、`TemplateInstance` 强类型约束；`TemplateInstance` 完美支持保存选择模板时的版本快照/布局槽位快照。
   - **模板展示与选择流转状态机**：实现了在 APPROVED/PRODUCTION_READY 状态下流转至模板选择界面展示 `TemplateGallery` 与 `TemplateDetailView` 的逻辑。
@@ -114,8 +114,8 @@ npm run test
 ```
 结果：
 - **测试文件总数**：26
-- **测试用例总数**：270
-- **结果分布**：270 通过，0 失败，0 跳过
+- **测试用例总数**：259
+- **结果分布**：259 通过，0 失败，0 跳过
 - **退出码**：0
 - **警告情况**：stderr 干净，**无 React `act` 警告**或其他警告。
 
@@ -139,4 +139,4 @@ npm run test
 
 ## 10. 下一步唯一任务
 
-Phase 2 完整导入与分析链路健壮性重构加固已圆满完成，系统表现高保真且完全生产就绪。下一步可以根据最新的产品大纲规划，开始推进多模态场景合并、叠加预览、大文件融合等后续任务。
+Phase 4-A-2 修复完成 / Phase 4-A 阶段圆满结束。所有阻断项全部清除，服务端强契约校验及可信字段注入完美就绪，并具备高保真和极端边缘容错能力。下一步可以正式进入 PromptCompiler 或 Phase 4-B 的开发工作。
