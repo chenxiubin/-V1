@@ -276,9 +276,17 @@ describe('Phase 4-A: SceneRecipe Server-side Creation (Additional validations)',
     vi.restoreAllMocks(); mockClient.generateContent.mockReset();
   });
 
-  it('5. schemaVersion 非 1.0 时触发修复', async () => {
+  it('5. scene.spaceType 缺失时触发修复并重试（两次调用）', async () => {
+    const invalidRecipe = {
+      scene: { wallMaterial: 'concrete', desktopMaterial: 'wood', desktopTone: 'light oak', backgroundBrightness: 'medium_light', style: 'nordic minimalist', palette: ['#FFFFFF'], furnitureDensity: 'low' }, // spaceType is missing
+      composition: { purpose: 'hero', productCount: 1, productPosition: 'center', productWidthPercent: 50, copySpace: 'none', cameraView: 'front_left', cameraHeight: 'near_eye_level', framing: 'medium', perspectiveStrength: 'low', desktopVisiblePercent: 30 },
+      lighting: { sourceType: 'window', sourcePosition: 'upper_left', temperature: 'neutral', softness: 'soft', contrast: 'low', shadowDirection: 'rear_right' },
+      decoration: { density: 'minimal', allowed: ['small succulent'], forbiddenNearProduct: [], foregroundOcclusion: false },
+      output: { aspectRatio: '1:1', resolutionLabel: '2K', exclude: ['product', 'person', 'hands', 'text', 'logo', 'watermark'] }
+    };
+
     mockClient.generateContent
-      .mockResolvedValueOnce({ text: JSON.stringify({ ...VALID_MOCK_RECIPE, schemaVersion: '2.0' }) })
+      .mockResolvedValueOnce({ text: JSON.stringify(invalidRecipe) })
       .mockResolvedValueOnce({ text: JSON.stringify(VALID_MOCK_RECIPE) });
 
     const res = await request(app).post('/api/ai/scene-recipe').send({
@@ -288,52 +296,69 @@ describe('Phase 4-A: SceneRecipe Server-side Creation (Additional validations)',
     expect(mockClient.generateContent).toHaveBeenCalledTimes(2);
   });
 
-  it('6. version 非 1 时直接忽略并修复', async () => {
-    mockClient.generateContent
-      .mockResolvedValueOnce({ text: JSON.stringify({ ...VALID_MOCK_RECIPE, version: 2 }) });
+  it('6. RecipeBody 只有业务字段也能成功创建完整 SceneRecipe，服务端完成所有注入', async () => {
+    const pureBusinessRecipe = {
+      scene: { spaceType: 'study', wallMaterial: 'concrete', desktopMaterial: 'wood', desktopTone: 'light oak', backgroundBrightness: 'medium_light', style: 'nordic minimalist', palette: ['#FFFFFF', '#ECEFF1'], furnitureDensity: 'low' },
+      composition: { purpose: 'hero', productCount: 1, productPosition: 'center', productWidthPercent: 50, copySpace: 'none', cameraView: 'front_left', cameraHeight: 'near_eye_level', framing: 'medium', perspectiveStrength: 'low', desktopVisiblePercent: 30 },
+      lighting: { sourceType: 'window', sourcePosition: 'upper_left', temperature: 'neutral', softness: 'soft', contrast: 'low', shadowDirection: 'rear_right' },
+      decoration: { density: 'minimal', allowed: ['small succulent'], forbiddenNearProduct: [] },
+      output: { aspectRatio: '1:1', resolutionLabel: '2K', exclude: ['product', 'person', 'hands', 'text', 'logo', 'watermark'] }
+    };
+
+    mockClient.generateContent.mockResolvedValueOnce({ text: JSON.stringify(pureBusinessRecipe) });
 
     const res = await request(app).post('/api/ai/scene-recipe').send({
       productProfile: VALID_PROFILE, guidedAnswers: VALID_ANSWERS, sceneDirections: VALID_DIRECTIONS, selectedDirectionId: 'dir-nordic'
     });
+
     expect(res.status).toBe(200);
+    // Verify server-side injection
+    expect(res.body.schemaVersion).toBe('1.0');
     expect(res.body.version).toBe(1);
-    expect(mockClient.generateContent).toHaveBeenCalledTimes(1);
-  });
-
-  it('7. productAssetId 不匹配时直接忽略并修复', async () => {
-    mockClient.generateContent
-      .mockResolvedValueOnce({ text: JSON.stringify({ ...VALID_MOCK_RECIPE, productAssetId: 'wrong-id' }) });
-
-    const res = await request(app).post('/api/ai/scene-recipe').send({
-      productProfile: VALID_PROFILE, guidedAnswers: VALID_ANSWERS, sceneDirections: VALID_DIRECTIONS, selectedDirectionId: 'dir-nordic'
-    });
-    expect(res.status).toBe(200);
     expect(res.body.productAssetId).toBe(VALID_PROFILE.productAssetId);
-    expect(mockClient.generateContent).toHaveBeenCalledTimes(1);
-  });
-
-  it('8. selectedDirectionId 被模型改写时直接忽略并修复', async () => {
-    mockClient.generateContent
-      .mockResolvedValueOnce({ text: JSON.stringify({ ...VALID_MOCK_RECIPE, selectedDirectionId: 'dir-retro' }) });
-
-    const res = await request(app).post('/api/ai/scene-recipe').send({
-      productProfile: VALID_PROFILE, guidedAnswers: VALID_ANSWERS, sceneDirections: VALID_DIRECTIONS, selectedDirectionId: 'dir-nordic'
-    });
-    expect(res.status).toBe(200);
     expect(res.body.selectedDirectionId).toBe('dir-nordic');
+    expect(res.body.task).toEqual({
+      operation: 'generate_empty_scene_background',
+      productRole: 'analysis_and_spatial_reference_only',
+      backgroundOnly: true
+    });
+    expect(res.body.recipeId).toBeDefined();
+    expect(res.body.createdAt).toBeDefined();
+    expect(res.body.updatedAt).toBeDefined();
     expect(mockClient.generateContent).toHaveBeenCalledTimes(1);
   });
 
-  it('9. task 固定字段被改写时直接忽略并修复', async () => {
-    mockClient.generateContent
-      .mockResolvedValueOnce({ text: JSON.stringify({ ...VALID_MOCK_RECIPE, task: { ...VALID_MOCK_RECIPE.task, backgroundOnly: false } }) });
+  it('7. 模型额外返回 productAssetId 等固定字段时直接忽略/覆写，确保由服务端注入且防篡改', async () => {
+    const pollutedRecipe = {
+      schemaVersion: '9.9',
+      version: 99,
+      productAssetId: 'malicious-asset-id',
+      selectedDirectionId: 'malicious-direction',
+      task: { operation: 'malicious_op', productRole: 'malicious_role', backgroundOnly: false },
+      scene: { spaceType: 'study', wallMaterial: 'concrete', desktopMaterial: 'wood', desktopTone: 'light oak', backgroundBrightness: 'medium_light', style: 'nordic minimalist', palette: ['#FFFFFF', '#ECEFF1'], furnitureDensity: 'low' },
+      composition: { purpose: 'hero', productCount: 1, productPosition: 'center', productWidthPercent: 50, copySpace: 'none', cameraView: 'front_left', cameraHeight: 'near_eye_level', framing: 'medium', perspectiveStrength: 'low', desktopVisiblePercent: 30 },
+      lighting: { sourceType: 'window', sourcePosition: 'upper_left', temperature: 'neutral', softness: 'soft', contrast: 'low', shadowDirection: 'rear_right' },
+      decoration: { density: 'minimal', allowed: ['small succulent'], forbiddenNearProduct: [] },
+      output: { aspectRatio: '1:1', resolutionLabel: '2K', exclude: ['product', 'person', 'hands', 'text', 'logo', 'watermark'] }
+    };
+
+    mockClient.generateContent.mockResolvedValueOnce({ text: JSON.stringify(pollutedRecipe) });
 
     const res = await request(app).post('/api/ai/scene-recipe').send({
       productProfile: VALID_PROFILE, guidedAnswers: VALID_ANSWERS, sceneDirections: VALID_DIRECTIONS, selectedDirectionId: 'dir-nordic'
     });
+
     expect(res.status).toBe(200);
-    expect(res.body.task.backgroundOnly).toBe(true);
-    expect(mockClient.generateContent).toHaveBeenCalledTimes(1);
+    // Verify that model-tampered fields are ignored/overwritten by the server's authoritative ones
+    expect(res.body.schemaVersion).toBe('1.0');
+    expect(res.body.version).toBe(1);
+    expect(res.body.productAssetId).toBe(VALID_PROFILE.productAssetId);
+    expect(res.body.selectedDirectionId).toBe('dir-nordic');
+    expect(res.body.task).toEqual({
+      operation: 'generate_empty_scene_background',
+      productRole: 'analysis_and_spatial_reference_only',
+      backgroundOnly: true
+    });
   });
 
   it('10. foregroundOcclusion=true 时被拒绝并触发修复', async () => {

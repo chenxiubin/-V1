@@ -137,19 +137,6 @@ const DIRECTIONS_RESPONSE_SCHEMA = {
 const RECIPE_RESPONSE_SCHEMA = {
   type: Type.OBJECT,
   properties: {
-    schemaVersion: { type: Type.STRING },
-    version: { type: Type.NUMBER },
-    productAssetId: { type: Type.STRING },
-    selectedDirectionId: { type: Type.STRING },
-    task: {
-      type: Type.OBJECT,
-      properties: {
-        operation: { type: Type.STRING },
-        productRole: { type: Type.STRING },
-        backgroundOnly: { type: Type.BOOLEAN }
-      },
-      required: ["operation", "productRole", "backgroundOnly"]
-    },
     scene: {
       type: Type.OBJECT,
       properties: {
@@ -212,7 +199,7 @@ const RECIPE_RESPONSE_SCHEMA = {
       required: ["aspectRatio", "resolutionLabel", "exclude"]
     }
   },
-  required: ["schemaVersion", "version", "productAssetId", "selectedDirectionId", "task", "scene", "composition", "lighting", "decoration", "output"]
+  required: ["scene", "composition", "lighting", "decoration", "output"]
 };
 
 const RECIPE_SYSTEM_PROMPT = `You are an expert commercial product photography director.
@@ -815,27 +802,8 @@ export class GeminiScenePlannerService {
           continue;
         }
 
-        // Output desensitized ID diagnosis after Gemini returns and parses
-        console.log('[ID Diagnosis] Post-Gemini Call Variables:', {
-          modelRecipeProductAssetId: parsed.productAssetId
-        });
-
-        if (parsed.productAssetId !== profile.productAssetId) {
-          console.warn(`[ID Diagnosis Mismatch] modelRecipeProductAssetId (${parsed.productAssetId}) does not match productProfile.productAssetId (${profile.productAssetId})`);
-        }
-
-        if (parsed.schemaVersion !== '1.0') throw new Error('schemaVersion must be 1.0');
-        if (parsed.version && parsed.version !== 1) {
-          console.warn(`[Fixed Fields] Ignoring model-returned version: ${parsed.version}`);
-        }
-        if (parsed.productAssetId && parsed.productAssetId !== profile.productAssetId) {
-          console.warn(`[Fixed Fields] Ignoring model-returned productAssetId: ${parsed.productAssetId}`);
-        }
-        if (parsed.selectedDirectionId && parsed.selectedDirectionId !== selectedDirectionId) {
-          console.warn(`[Fixed Fields] Ignoring model-returned selectedDirectionId: ${parsed.selectedDirectionId}`);
-        }
-        if (parsed.task && (parsed.task.operation !== 'generate_empty_scene_background' || parsed.task.productRole !== 'analysis_and_spatial_reference_only' || parsed.task.backgroundOnly !== true)) {
-          console.warn(`[Fixed Fields] Ignoring model-tampered task config: ${JSON.stringify(parsed.task)}`);
+        if (!parsed.scene?.spaceType) {
+          throw new Error('scene.spaceType is required');
         }
 
         if (typeof parsed.composition?.productCount !== 'number' || !Number.isInteger(parsed.composition.productCount) || parsed.composition.productCount < 1) {
