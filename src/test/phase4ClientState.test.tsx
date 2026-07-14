@@ -213,6 +213,14 @@ const MOCK_PROMPT_DOCUMENT: PromptDocument = {
   },
   fullPrompt: 'full prompt',
   fullJson: '{}',
+  objectJson: {
+    task: '{}',
+    scene: '{}',
+    composition: '{}',
+    lighting: '{}',
+    decoration: '{}',
+    output: '{}',
+  },
   createdAt: '2023-01-01T00:00:00Z',
 };
 

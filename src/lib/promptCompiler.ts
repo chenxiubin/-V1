@@ -291,6 +291,18 @@ ${outputConstraints}`;
 
   const timestamp = createdAt || '2026-07-10T03:15:10-07:00';
 
+  const objectJson: any = {
+    task: JSON.stringify({ task: recipe.task }, null, 2),
+    scene: JSON.stringify({ scene: recipe.scene }, null, 2),
+    composition: JSON.stringify({ composition: recipe.composition }, null, 2),
+    lighting: JSON.stringify({ lighting: recipe.lighting }, null, 2),
+    decoration: JSON.stringify({ decoration: recipe.decoration }, null, 2),
+    output: JSON.stringify({ output: recipe.output }, null, 2),
+  };
+  if (recipe.inheritance) {
+    objectJson.inheritance = JSON.stringify({ inheritance: recipe.inheritance }, null, 2);
+  }
+
   return {
     recipeId: recipe.recipeId,
     recipeVersion: recipe.version,
@@ -305,6 +317,7 @@ ${outputConstraints}`;
     },
     fullPrompt,
     fullJson,
+    objectJson,
     createdAt: timestamp,
   };
 }

@@ -1,12 +1,12 @@
 # PROJECT_HANDOFF｜项目交接与真实进度
 
-> Phase 1 与 Phase 2（包含 2-A、2-B1、2-B2 和 2-C）回归加固已全部完成，真实 Gemini 图片分析链路已通过用户界面与共享 Schema 验证，所有的 API 错误容错、异步状态机过渡及 270 项自动化测试已完全通过。
+> Phase 1、Phase 2（包含 2-A、2-B1、2-B2 和 2-C）、Phase 4-A 及 Phase 4-B（PromptCompiler 与稳定 JSON 编译链路）已全部完成，真实 Gemini 规划、纯确定性编译与契约强校验体系已完全通过。所有的 API 错误容错、敏感数据扫描、异步状态机过渡及 274 项自动化测试已完全通过。
 
 ## 1. 当前状态
 
-- 当前Phase：Phase 4-A-2 修复与全量测试通过 / Phase 4-A 阶段圆满结束
-- 当前分支/检查点：Phase 4-A SceneRecipe Server-side Creation Complete
-- 最后更新时间：2026-07-13T23:41:55-07:00
+- 当前Phase：Phase 4-B 确定性 PromptCompiler 与稳定 JSON 编译链路完成
+- 当前分支/检查点：Phase 4-B PromptCompiler Complete
+- 最后更新时间：2026-07-14T01:04:15-07:00
 - 当前是否可构建：是
 - 当前是否可打开预览：是
 
@@ -42,6 +42,13 @@
   - **精细超时配置与中断支持**：引入了全新的 `GEMINI_RECIPE_TIMEOUT_MS` 配置（默认 `120000`ms）替代原有的 Analysis 超时参数。目前使用 Promise.race 机制，超时不能保证取消底层 Gemini 请求，可能继续消耗额度。
   - **RealAdapter 强特征 JSON 拦截**：增加对网络拦截 HTML 响应的高敏感检测，若包含 `<!doctype`, `<html`, `<body` 时直接触发强特征的 `NETWORK_INTERCEPTED` 错误，杜绝 JSON.parse 崩溃。
   - **测试套件与物理清理**：完成测试重写，提供高覆盖度、高保真的测试结果，并对工作区内所有的临时 `.cjs` 和 `update-routes.js` 文件执行了物理清理。
+- **Phase 4-B**：确定性 PromptCompiler 与稳定 JSON 编译链路（完成）：
+  - **纯确定性编译契约**：在 `src/services/ai/promptCompiler.ts` 中实现纯 TypeScript 同步编译函数 `compilePromptDocument`，无任何 Gemini 调用、随机数或网络层，基于 Recipe 严格产生逐字符一致的输出。
+  - **六段式提示词标准结构**：强制遵循 6 段式文本划分，包含固定的一级标题：【1. 任务与参考关系】、【2. 产品匹配依据】、【3. 场景与风格】、【4. 镜头与构图】、【5. 光线与装饰】、及【6. 输出限制】，精确展开对应实体属性。
+  - **顶层固定与稳定排序 JSON**：完整 `fullJson` 与独立 `objectJson` 的一级对象键具有固定顺序，子项对象采用键字母递归稳定排序。
+  - **强制类型拓展与对齐**：修改 `PromptDocumentSchema` 与 mock 声明以包括 `objectJson` 强契约对位。
+  - **主动式敏感词安全审计**：扫描器对全量编译内容（fullPrompt、fullJson、sections、objectJson）执行覆盖式审查，阻止 API 密钥、localhost、绝对/系统路径等外泄，并对异常执行直接阻断，保障合规底线。
+  - **30 项专属测试用例覆盖**：重构并新增 `/src/test/promptCompiler.test.ts` 至 30 个严格单元测试，无一遗漏。
 - **Phase 7-B**：TemplateSuite 基础系统设计与开发：
   - **核心数据模型与契约安全**：对齐 Phase 7-A-2 架构设计，在 Zod 模式层及 TypeScript 侧确立了 `TemplateSuite`、`TemplateVariant`、`Slot`、`TemplateInstance` 强类型约束；`TemplateInstance` 完美支持保存选择模板时的版本快照/布局槽位快照。
   - **模板展示与选择流转状态机**：实现了在 APPROVED/PRODUCTION_READY 状态下流转至模板选择界面展示 `TemplateGallery` 与 `TemplateDetailView` 的逻辑。
@@ -49,7 +56,7 @@
 
 ## 3. 当前未完成
 
-- Phase 3~Phase 7-A、Phase 7-C~Phase 9 客户端多模态分析结果审核修改、引导问题、场景选择、大文件叠加预览、以及系列自动化及生产就绪等。
+- Phase 3~Phase 4-C、Phase 5~Phase 7-A、Phase 7-C~Phase 9 客户端多模态分析结果审核修改、引导问题、场景选择、大文件叠加预览、以及系列自动化及生产就绪等。
 
 ## 4. 实际修改文件
 
@@ -105,6 +112,8 @@
 | AC-209 | 通过 | 单元测试验证遇到 JSON 损坏或缺字段时，系统有且仅执行一次结构修复重试，第二次仍失败抛出 `GEMINI_PARSE_FAILED` |
 | AC-210 | 通过 | 单元测试验证大模型在任何响应中不能篡改或覆盖来自 FormData 的可信 `productAssetId` |
 | AC-211 | 通过 | 单元测试验证在超时限制下抛出 `TIMEOUT` 错误，并测试敏感信息安全遮蔽及不泄露堆栈/Key |
+| AC-410 | 通过 | 单元测试（共 30 个 case）覆盖 PromptCompiler 100% 确定性编译、主权中文段落排列、稳定排序 JSON 及 objectJson |
+| AC-411 | 通过 | 单元测试验证敏感数据外泄（API Keys、 localhost、系统内部绝对路径）全维度扫描拦截，成功触发阻断 |
 
 ## 6. 运行命令与真实结果
 
@@ -114,8 +123,8 @@ npm run test
 ```
 结果：
 - **测试文件总数**：26
-- **测试用例总数**：259
-- **结果分布**：259 通过，0 失败，0 跳过
+- **测试用例总数**：274
+- **结果分布**：274 通过，0 失败，0 跳过
 - **退出码**：0
 - **警告情况**：stderr 干净，**无 React `act` 警告**或其他警告。
 
@@ -139,4 +148,4 @@ npm run test
 
 ## 10. 下一步唯一任务
 
-Phase 4-A-2 修复完成 / Phase 4-A 阶段圆满结束。所有阻断项全部清除，服务端强契约校验及可信字段注入完美就绪，并具备高保真和极端边缘容错能力。下一步可以正式进入 PromptCompiler 或 Phase 4-B 的开发工作。
+Phase 4-B PromptCompiler 确定性编译与稳定 JSON 编译链路已圆满结束。所有阻断项、敏感审计、30 项严格单元测试全部顺利通关。下一步可以正式进入 Recipe 页面展示、复制交互设计与 Phase 4-C 的前端开发。

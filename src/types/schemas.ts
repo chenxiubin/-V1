@@ -287,6 +287,15 @@ export const PromptDocumentSchema = z.object({
   }),
   fullPrompt: z.string(),
   fullJson: z.string(),
+  objectJson: z.object({
+    task: z.string(),
+    scene: z.string(),
+    composition: z.string(),
+    lighting: z.string(),
+    decoration: z.string(),
+    output: z.string(),
+    inheritance: z.string().optional(),
+  }),
   createdAt: z.string(),
 });
 export type PromptDocument = z.infer<typeof PromptDocumentSchema>;

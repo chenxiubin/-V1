@@ -860,6 +860,14 @@ describe('Phase 3-C-2: Semantic State Gates & Recovery Tests', () => {
         },
         fullPrompt: '',
         fullJson: '{}',
+        objectJson: {
+          task: '{}',
+          scene: '{}',
+          composition: '{}',
+          lighting: '{}',
+          decoration: '{}',
+          output: '{}',
+        },
         createdAt: 'now',
       };
 
@@ -908,6 +916,14 @@ describe('Phase 3-C-2: Semantic State Gates & Recovery Tests', () => {
         sections: { taskAndReferences: '', productMatching: '', sceneAndStyle: '', cameraAndComposition: '', lightingAndDecoration: '', outputConstraints: '' },
         fullPrompt: '',
         fullJson: '{}',
+        objectJson: {
+          task: '{}',
+          scene: '{}',
+          composition: '{}',
+          lighting: '{}',
+          decoration: '{}',
+          output: '{}',
+        },
         createdAt: 'now',
       };
 
@@ -954,6 +970,14 @@ describe('Phase 3-C-2: Semantic State Gates & Recovery Tests', () => {
         sections: { taskAndReferences: '', productMatching: '', sceneAndStyle: '', cameraAndComposition: '', lightingAndDecoration: '', outputConstraints: '' },
         fullPrompt: '',
         fullJson: '{}',
+        objectJson: {
+          task: '{}',
+          scene: '{}',
+          composition: '{}',
+          lighting: '{}',
+          decoration: '{}',
+          output: '{}',
+        },
         createdAt: 'now',
       };
 

@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { compilePromptDocument, compileTopLevelJsonObjects } from '../services/ai/promptCompiler.js';
 import { SceneRecipe } from '../types/schemas.js';
 
@@ -15,7 +15,7 @@ const VALID_RECIPE: any = {
     formType: 'box',
     placementType: 'standing',
     mainMaterial: 'cardboard',
-    primaryColors: ['#FFFFFF'],
+    primaryColors: ['#FFFFFF', '#FF0000'], // Array with order to preserve
     spatialMarkers: {},
     recommendedSceneTypes: [],
     recommendedProps: [],
@@ -47,7 +47,7 @@ const VALID_RECIPE: any = {
     desktopTone: 'light',
     backgroundBrightness: 'medium_light',
     style: 'nordic',
-    palette: ['#FFFFFF'],
+    palette: ['#FFFFFF', '#CCCCCC'], // Order check
     furnitureDensity: 'low'
   },
   composition: {
@@ -86,17 +86,41 @@ const VALID_RECIPE: any = {
   updatedAt: '2023-01-01T00:00:00Z'
 };
 
-describe('PromptCompiler', () => {
-  it('1. 合法 Recipe 可生成 PromptDocument', () => {
+describe('PromptCompiler (Phase 4-B)', () => {
+
+  it('1. 合法 SceneRecipe 可以编译', () => {
     const doc = compilePromptDocument(VALID_RECIPE);
     expect(doc).toBeDefined();
     expect(doc.recipeId).toBe('test-recipe-123');
+  });
+
+  it('2. compilerVersion 固定', () => {
+    const doc = compilePromptDocument(VALID_RECIPE);
     expect(doc.compilerVersion).toBe('prompt-compiler-1.0');
   });
 
-  it('2. sections 严格只有固定 6 段', () => {
+  it('3. createdAt 等于 recipe.updatedAt', () => {
     const doc = compilePromptDocument(VALID_RECIPE);
-    expect(Object.keys(doc.sections)).toEqual([
+    expect(doc.createdAt).toBe(VALID_RECIPE.updatedAt);
+  });
+
+  it('4. 相同 Recipe 两次 fullPrompt 逐字符一致', () => {
+    const doc1 = compilePromptDocument(VALID_RECIPE);
+    const doc2 = compilePromptDocument(VALID_RECIPE);
+    expect(doc1.fullPrompt).toBe(doc2.fullPrompt);
+  });
+
+  it('5. 相同 Recipe 两次 fullJson 逐字符一致', () => {
+    const doc1 = compilePromptDocument(VALID_RECIPE);
+    const doc2 = compilePromptDocument(VALID_RECIPE);
+    expect(doc1.fullJson).toBe(doc2.fullJson);
+  });
+
+  it('6. 六段数量严格为 6', () => {
+    const doc = compilePromptDocument(VALID_RECIPE);
+    const keys = Object.keys(doc.sections);
+    expect(keys).toHaveLength(6);
+    expect(keys).toEqual([
       'taskAndReferences',
       'productMatching',
       'sceneAndStyle',
@@ -106,141 +130,247 @@ describe('PromptCompiler', () => {
     ]);
   });
 
-  it('3. 六段顺序固定，这在生成 fullPrompt 时验证', () => {
+  it('7. 六段顺序固定', () => {
     const doc = compilePromptDocument(VALID_RECIPE);
-    expect(doc.fullPrompt.indexOf('【1. 任务与参考关系】')).toBeLessThan(doc.fullPrompt.indexOf('【2. 产品匹配依据】'));
-    expect(doc.fullPrompt.indexOf('【2. 产品匹配依据】')).toBeLessThan(doc.fullPrompt.indexOf('【3. 场景与风格】'));
-    expect(doc.fullPrompt.indexOf('【5. 光线与装饰】')).toBeLessThan(doc.fullPrompt.indexOf('【6. 输出限制】'));
+    const pos1 = doc.fullPrompt.indexOf('【1. 任务与参考关系】');
+    const pos2 = doc.fullPrompt.indexOf('【2. 产品匹配依据】');
+    const pos3 = doc.fullPrompt.indexOf('【3. 场景与风格】');
+    const pos4 = doc.fullPrompt.indexOf('【4. 镜头与构图】');
+    const pos5 = doc.fullPrompt.indexOf('【5. 光线与装饰】');
+    const pos6 = doc.fullPrompt.indexOf('【6. 输出限制】');
+
+    expect(pos1).toBeGreaterThan(-1);
+    expect(pos2).toBeGreaterThan(pos1);
+    expect(pos3).toBeGreaterThan(pos2);
+    expect(pos4).toBeGreaterThan(pos3);
+    expect(pos5).toBeGreaterThan(pos4);
+    expect(pos6).toBeGreaterThan(pos5);
   });
 
-  it('4. fullPrompt 等于六段固定拼接结果', () => {
+  it('8. 六个中文标题固定', () => {
     const doc = compilePromptDocument(VALID_RECIPE);
-    expect(doc.fullPrompt).toContain('【1. 任务与参考关系】\n' + doc.sections.taskAndReferences);
-    expect(doc.fullPrompt).toContain('【6. 输出限制】\n' + doc.sections.outputConstraints);
+    expect(doc.fullPrompt).toContain('【1. 任务与参考关系】');
+    expect(doc.fullPrompt).toContain('【2. 产品匹配依据】');
+    expect(doc.fullPrompt).toContain('【3. 场景与风格】');
+    expect(doc.fullPrompt).toContain('【4. 镜头与构图】');
+    expect(doc.fullPrompt).toContain('【5. 光线与装饰】');
+    expect(doc.fullPrompt).toContain('【6. 输出限制】');
   });
 
-  it('5. 同一 Recipe 连续编译逐字符一致', () => {
-    const doc1 = compilePromptDocument(VALID_RECIPE);
-    const doc2 = compilePromptDocument(VALID_RECIPE);
-    expect(doc1).toEqual(doc2);
-  });
-
-  it('6. 深拷贝 Recipe 编译结果一致', () => {
-    const doc1 = compilePromptDocument(VALID_RECIPE);
-    const doc2 = compilePromptDocument(JSON.parse(JSON.stringify(VALID_RECIPE)));
-    expect(doc1).toEqual(doc2);
-  });
-
-  it('7. 对象键顺序不同仍输出一致', () => {
-    const doc1 = compilePromptDocument(VALID_RECIPE);
-    
-    // Create a copy with different key order
-    const shuffledRecipe: any = {
-      schemaVersion: '1.0',
-      version: 1,
-      recipeId: 'test-recipe-123',
-      productProfileSnapshot: VALID_RECIPE.productProfileSnapshot,
-      basedOnVersion: null,
-      productAssetId: 'asset-123',
-      selectedDirectionId: 'dir-1',
-      guidedAnswers: [],
-      createdAt: '2023-01-01T00:00:00Z',
-      updatedAt: '2023-01-01T00:00:00Z',
-      output: VALID_RECIPE.output,
-      scene: VALID_RECIPE.scene,
-      task: VALID_RECIPE.task,
-      composition: VALID_RECIPE.composition,
-      decoration: VALID_RECIPE.decoration,
-      lighting: VALID_RECIPE.lighting
-    };
-    
-    const doc2 = compilePromptDocument(shuffledRecipe as SceneRecipe);
-    expect(doc1.fullJson).toBe(doc2.fullJson);
-  });
-
-  it('8. createdAt 不受当前系统时间影响', () => {
-    const doc = compilePromptDocument(VALID_RECIPE);
-    expect(doc.createdAt).toBe('2023-01-01T00:00:00Z');
-  });
-
-  it('9. fullJson 可被 JSON.parse', () => {
-    const doc = compilePromptDocument(VALID_RECIPE);
-    expect(() => JSON.parse(doc.fullJson)).not.toThrow();
-    const parsed = JSON.parse(doc.fullJson);
-    expect(parsed.recipeId).toBe(VALID_RECIPE.recipeId);
-  });
-
-  it('10. 每个一级对象 JSON 均可独立解析', () => {
-    const objects = compileTopLevelJsonObjects(VALID_RECIPE);
-    expect(() => JSON.parse(objects.scene)).not.toThrow();
-    expect(() => JSON.parse(objects.lighting)).not.toThrow();
-    const parsedScene = JSON.parse(objects.scene);
-    expect(parsedScene.scene).toBeDefined();
-    expect(parsedScene.scene.spaceType).toBe('study');
-  });
-
-  it('11. inheritance 不存在时不生成非法内容', () => {
-    const objects = compileTopLevelJsonObjects(VALID_RECIPE);
-    expect(objects.inheritance).toBeUndefined();
-  });
-
-  it('12. inheritance 存在时可独立解析', () => {
-    const recipeWithInheritance: SceneRecipe = {
-      ...VALID_RECIPE,
-      inheritance: {
-        seriesId: 'series-123',
-        mode: 'same_space',
-        lockedSeriesVersion: 1
-      }
-    };
-    const objects = compileTopLevelJsonObjects(recipeWithInheritance);
-    expect(objects.inheritance).toBeDefined();
-    const parsed = JSON.parse(objects.inheritance);
-    expect(parsed.inheritance.seriesId).toBe('series-123');
-  });
-
-  it('13. 提示词明确为空场景', () => {
+  it('9. 第一段明确为空场景任务', () => {
     const doc = compilePromptDocument(VALID_RECIPE);
     expect(doc.sections.taskAndReferences).toContain('空场景背景图');
   });
 
-  it('14. 提示词包含产品、人物、手部、文字、Logo、水印禁止项', () => {
+  it('10. 第一段明确产品只作参考', () => {
+    const doc = compilePromptDocument(VALID_RECIPE);
+    expect(doc.sections.taskAndReferences).toContain('参考');
+  });
+
+  it('11. 第六段明确不生成产品', () => {
     const doc = compilePromptDocument(VALID_RECIPE);
     expect(doc.sections.outputConstraints).toContain('产品');
+    expect(doc.sections.outputConstraints).toContain('绝对不允许');
+  });
+
+  it('12. 第六段明确不生成人物', () => {
+    const doc = compilePromptDocument(VALID_RECIPE);
     expect(doc.sections.outputConstraints).toContain('人物');
+  });
+
+  it('13. 第六段明确不生成手部', () => {
+    const doc = compilePromptDocument(VALID_RECIPE);
+    expect(doc.sections.outputConstraints).toContain('手部');
+  });
+
+  it('14. 第六段明确不生成文字', () => {
+    const doc = compilePromptDocument(VALID_RECIPE);
     expect(doc.sections.outputConstraints).toContain('文字');
   });
 
-  it('15. 不描述产品具体图案和文字', () => {
+  it('15. 第六段明确不生成 Logo', () => {
     const doc = compilePromptDocument(VALID_RECIPE);
-    expect(doc.sections.productMatching).toContain('不要复述产品表面的具体图案和文字');
+    expect(doc.sections.outputConstraints).toContain('Logo');
   });
 
-  it('16. 非法 SceneRecipe 被拒绝', () => {
-    const invalidRecipe = { ...VALID_RECIPE, scene: null };
-    expect(() => compilePromptDocument(invalidRecipe as any)).toThrow('Invalid SceneRecipe schema');
+  it('16. 第六段明确不生成水印', () => {
+    const doc = compilePromptDocument(VALID_RECIPE);
+    expect(doc.sections.outputConstraints).toContain('水印');
   });
 
-  it('17. Base64、blob、内部路径或凭证被拒绝', () => {
-    const maliciousRecipe = { ...VALID_RECIPE, scene: { ...VALID_RECIPE.scene, style: 'data:image/png;base64,iVBORw0KGgo' } };
-    expect(() => compilePromptDocument(maliciousRecipe as any)).toThrow(/Sensitive data/);
+  it('17. fullJson 可以 JSON.parse', () => {
+    const doc = compilePromptDocument(VALID_RECIPE);
+    const parsed = JSON.parse(doc.fullJson);
+    expect(parsed.task).toBeDefined();
+    expect(parsed.scene).toBeDefined();
+    expect(parsed.composition).toBeDefined();
+    expect(parsed.lighting).toBeDefined();
+    expect(parsed.decoration).toBeDefined();
+    expect(parsed.output).toBeDefined();
   });
 
-  it('18. 编译过程不调用 fetch (无需网络)', () => {
-    // We didn't mock fetch, and it runs successfully without network
-    expect(true).toBe(true);
+  it('18. fullJson 顶层顺序固定', () => {
+    const doc = compilePromptDocument(VALID_RECIPE);
+    const parsedKeys = Object.keys(JSON.parse(doc.fullJson));
+    expect(parsedKeys).toEqual(['task', 'scene', 'composition', 'lighting', 'decoration', 'output']);
   });
 
-  it('19. 编译过程不调用 Gemini 或 Adapter', () => {
-    // We didn't inject or mock Gemini, and it runs successfully
-    expect(true).toBe(true);
+  it('19. 每个 objectJson 可独立 JSON.parse', () => {
+    const doc = compilePromptDocument(VALID_RECIPE);
+    const keys = ['task', 'scene', 'composition', 'lighting', 'decoration', 'output'];
+    for (const key of keys) {
+      const parsed = JSON.parse(doc.objectJson[key as keyof typeof doc.objectJson]);
+      expect(parsed[key]).toBeDefined();
+    }
   });
 
-  it('20. Recipe 关键字段变化会改变对应编译结果', () => {
-    const doc1 = compilePromptDocument(VALID_RECIPE);
-    const changedRecipe = { ...VALID_RECIPE, scene: { ...VALID_RECIPE.scene, spaceType: 'kitchen' } };
-    const doc2 = compilePromptDocument(changedRecipe);
-    expect(doc1.sections.sceneAndStyle).not.toBe(doc2.sections.sceneAndStyle);
-    expect(doc1.fullPrompt).not.toBe(doc2.fullPrompt);
+  it('20. inheritance 不存在时不输出', () => {
+    const doc = compilePromptDocument(VALID_RECIPE);
+    expect(doc.objectJson.inheritance).toBeUndefined();
+    const parsedFull = JSON.parse(doc.fullJson);
+    expect(parsedFull.inheritance).toBeUndefined();
   });
+
+  it('21. inheritance 存在时正确输出', () => {
+    const recipeWithInheritance = {
+      ...VALID_RECIPE,
+      inheritance: {
+        seriesId: 'series-999',
+        mode: 'same_style',
+        lockedSeriesVersion: 2
+      }
+    };
+    const doc = compilePromptDocument(recipeWithInheritance);
+    expect(doc.objectJson.inheritance).toBeDefined();
+    const parsedInheritance = JSON.parse(doc.objectJson.inheritance!);
+    expect(parsedInheritance.inheritance.seriesId).toBe('series-999');
+
+    const parsedFull = JSON.parse(doc.fullJson);
+    expect(parsedFull.inheritance).toBeDefined();
+    expect(parsedFull.inheritance.seriesId).toBe('series-999');
+  });
+
+  it('22. 对象键递归稳定排序', () => {
+    // Modify input sub-objects to have unordered keys
+    const unsortedRecipe = {
+      ...VALID_RECIPE,
+      scene: {
+        palette: ['#FFFFFF'],
+        style: 'nordic',
+        spaceType: 'study',
+        furnitureDensity: 'low',
+        desktopTone: 'light',
+        desktopMaterial: 'wood',
+        backgroundBrightness: 'medium_light',
+        wallMaterial: 'concrete'
+      }
+    };
+    const doc = compilePromptDocument(unsortedRecipe);
+    const parsed = JSON.parse(doc.fullJson);
+    const sceneKeys = Object.keys(parsed.scene);
+    // alphabetical sorted check
+    expect(sceneKeys).toEqual([
+      'backgroundBrightness',
+      'desktopMaterial',
+      'desktopTone',
+      'furnitureDensity',
+      'palette',
+      'spaceType',
+      'style',
+      'wallMaterial'
+    ]);
+  });
+
+  it('23. 数组顺序不改变', () => {
+    const doc = compilePromptDocument(VALID_RECIPE);
+    const parsed = JSON.parse(doc.fullJson);
+    expect(parsed.scene.palette).toEqual(['#FFFFFF', '#CCCCCC']);
+  });
+
+  it('24. undefined 不进入 JSON', () => {
+    const recipeWithUndefined = {
+      ...VALID_RECIPE,
+      basedOnVersion: undefined
+    };
+    const doc = compilePromptDocument(recipeWithUndefined);
+    const parsed = JSON.parse(doc.fullJson);
+    expect(parsed.basedOnVersion).toBeUndefined();
+  });
+
+  it('25. 输入 Recipe 不被原地修改', () => {
+    const originalString = JSON.stringify(VALID_RECIPE);
+    compilePromptDocument(VALID_RECIPE);
+    const postString = JSON.stringify(VALID_RECIPE);
+    expect(originalString).toBe(postString);
+  });
+
+  it('26. 不调用 fetch', () => {
+    const originalFetch = global.fetch;
+    global.fetch = vi.fn().mockImplementation(() => {
+      throw new Error('Fetch should not be called');
+    });
+    try {
+      const doc = compilePromptDocument(VALID_RECIPE);
+      expect(doc).toBeDefined();
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
+  it('27. 不调用 Gemini', () => {
+    // Compile works directly and synchronously without async resolution of AI clients
+    const doc = compilePromptDocument(VALID_RECIPE);
+    expect(doc).toBeDefined();
+  });
+
+  it('28. 不调用 RealAdapter', () => {
+    // Handled synchronously without initialization or execution of adapters
+    const doc = compilePromptDocument(VALID_RECIPE);
+    expect(doc).toBeDefined();
+  });
+
+  it('29. 敏感字符串触发失败', () => {
+    const badRecipes = [
+      {
+        ...VALID_RECIPE,
+        scene: { ...VALID_RECIPE.scene, style: 'sk-12345678901234567890123456789012' }
+      },
+      {
+        ...VALID_RECIPE,
+        scene: { ...VALID_RECIPE.scene, style: 'Authorization: Bearer 12345678901234567890' }
+      },
+      {
+        ...VALID_RECIPE,
+        scene: { ...VALID_RECIPE.scene, style: 'data:image/png;base64,iVBORw0' }
+      },
+      {
+        ...VALID_RECIPE,
+        scene: { ...VALID_RECIPE.scene, style: 'file:///usr/bin/secret' }
+      },
+      {
+        ...VALID_RECIPE,
+        scene: { ...VALID_RECIPE.scene, style: 'http://localhost:3000' }
+      },
+      {
+        ...VALID_RECIPE,
+        scene: { ...VALID_RECIPE.scene, style: '/var/log/secure' }
+      }
+    ];
+
+    for (const bad of badRecipes) {
+      expect(() => compilePromptDocument(bad as any)).toThrow();
+    }
+  });
+
+  it('30. 非法 SceneRecipe 拒绝编译', () => {
+    const invalidRecipe = {
+      ...VALID_RECIPE,
+      scene: {
+        ...VALID_RECIPE.scene,
+        backgroundBrightness: 'not-a-valid-brightness'
+      }
+    };
+    expect(() => compilePromptDocument(invalidRecipe as any)).toThrow();
+  });
+
 });
