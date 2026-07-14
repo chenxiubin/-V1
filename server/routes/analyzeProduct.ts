@@ -1,0 +1,206 @@
+import { Router, Request, Response, NextFunction } from 'express';
+import multer from 'multer';
+import { fileTypeFromBuffer } from 'file-type';
+import { ProductAnalysisService } from '../services/productAnalysisService.js';
+
+const router = Router();
+
+// Configure multer for memory storage and 10MB limit
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB
+  },
+});
+
+const ALLOWED_MIMES = ['image/png', 'image/jpeg', 'image/webp'];
+
+import { GoogleGenAI } from '@google/genai';
+
+router.get('/gemini-health', async (req: Request, res: Response) => {
+  const start = Date.now();
+  const apiKey = process.env.GEMINI_API_KEY;
+  const model = process.env.GEMINI_ANALYSIS_MODEL || 'gemini-3.5-flash';
+  
+  if (!apiKey) {
+    return res.status(200).json({
+      ok: false,
+      model,
+      keyConfigured: false,
+      durationMs: Date.now() - start,
+      error: {
+        name: 'MissingKeyError',
+        status: null,
+        code: 'MISSING_API_KEY',
+        message: 'GEMINI_API_KEY is not configured.'
+      }
+    });
+  }
+
+  try {
+    const ai = new GoogleGenAI({ apiKey });
+    const response = await ai.models.generateContent({
+      model,
+      contents: [{ role: 'user', parts: [{ text: 'Respond with exactly: OK' }] }],
+      config: {
+        maxOutputTokens: 10,
+        temperature: 0
+      }
+    });
+
+    return res.status(200).json({
+      ok: true,
+      model,
+      keyConfigured: true,
+      durationMs: Date.now() - start,
+      error: null
+    });
+  } catch (error: any) {
+    return res.status(200).json({
+      ok: false,
+      model,
+      keyConfigured: true,
+      durationMs: Date.now() - start,
+      error: {
+        name: error.name || 'Error',
+        status: error.status || error.statusCode || null,
+        code: error.code || 'UNKNOWN_ERROR',
+        message: error.message || 'Unknown error occurred'
+      }
+    });
+  }
+});
+
+router.post('/analyze-product', (req: Request, res: Response, next: NextFunction) => {
+  upload.single('productImage')(req, res, async (err) => {
+    if (err) {
+      if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({
+          code: 'FILE_TOO_LARGE',
+          message: '文件大小超过10MB上限，请重新上传。',
+          retryable: false,
+        });
+      }
+      return res.status(400).json({
+        code: 'UPLOAD_ERROR',
+        message: err.message || '图片上传过程中发生错误。',
+        retryable: true,
+      });
+    }
+
+    try {
+      const file = req.file;
+      if (!file) {
+        return res.status(400).json({
+          code: 'MISSING_FILE',
+          message: '未接收到产品图片，请选择需要上传的产品图片。',
+          retryable: false,
+        });
+      }
+
+      const productAssetId = req.body.productAssetId;
+      if (!productAssetId) {
+        return res.status(400).json({
+          code: 'MISSING_ASSET_ID',
+          message: '缺少产品资产关联标识(productAssetId)。',
+          retryable: false,
+        });
+      }
+
+      // 1. Check declared mime
+      if (!ALLOWED_MIMES.includes(file.mimetype)) {
+        return res.status(400).json({
+          code: 'INVALID_MIME',
+          message: '不支持的文件格式，仅支持 PNG、JPEG 和 WebP 格式图片。',
+          retryable: false,
+        });
+      }
+
+      // 2. Perform file signature (magic number) verification using file-type
+      const detected = await fileTypeFromBuffer(file.buffer);
+      if (!detected) {
+        return res.status(400).json({
+          code: 'INVALID_SIGNATURE',
+          message: '无法识别的文件签名，上传文件可能已损坏或格式伪造。',
+          retryable: false,
+        });
+      }
+
+      if (!ALLOWED_MIMES.includes(detected.mime)) {
+        return res.status(400).json({
+          code: 'INVALID_SIGNATURE',
+          message: `实际文件类型为 ${detected.mime}，不是允许的图片格式。`,
+          retryable: false,
+        });
+      }
+
+      // Ensure declared and actual mime types match
+      if (file.mimetype !== detected.mime) {
+        return res.status(400).json({
+          code: 'MIME_MISMATCH',
+          message: '上传文件的声明格式与实际文件签名内容不匹配。',
+          retryable: false,
+        });
+      }
+
+      // 3. Retrieve analysis service from Express app
+      const service = req.app.get('productAnalysisService') as ProductAnalysisService;
+      if (!service) {
+        return res.status(500).json({
+          code: 'SERVICE_NOT_FOUND',
+          message: '系统配置错误：产品分析服务未注册。',
+          retryable: false,
+        });
+      }
+
+      // 4. Run analysis
+      const profile = await service.analyze(file.buffer, detected.mime, productAssetId);
+      return res.status(200).json(profile);
+
+    } catch (error: any) {
+      let status = 500;
+      let code = error.code || 'INTERNAL_ERROR';
+      let message = error.message || '服务端分析产品时发生未知错误。';
+      let retryable = typeof error.retryable === 'boolean' ? error.retryable : false;
+      let retryAfterSeconds = null;
+
+      // Handle custom TIMEOUT or gateway timeout (504)
+      if (error.code === 'TIMEOUT' || error.status === 504 || error.statusCode === 504) {
+        status = 504;
+        code = 'TIMEOUT';
+        message = '分析产品大模型服务请求超时（120秒超时限制），请重试。';
+        retryable = true;
+      } 
+      // Handle rate limits (429)
+      else if (error.status === 429 || error.statusCode === 429 || /429|resource_exhausted|quota/i.test(error.message)) {
+        status = 429;
+        code = 'GEMINI_QUOTA_EXHAUSTED';
+        message = '当前项目的 Gemini 免费请求额度已达到上限，请稍后重试或检查项目额度。';
+        retryable = true;
+        
+        console.error(JSON.stringify({
+          status,
+          code,
+          model: process.env.GEMINI_ANALYSIS_MODEL || 'gemini-3.5-flash',
+          quotaMetric: 'GenerateRequestsPerDayPerProjectPerModel-FreeTier',
+          retryAfterSeconds
+        }));
+      } 
+      // Handle service unavailable (503)
+      else if (error.status === 503 || error.statusCode === 503 || /503|service_unavailable/i.test(error.message)) {
+        status = 503;
+        code = 'SERVICE_UNAVAILABLE';
+        message = '智能分析服务暂时不可用（503 Service Unavailable），请稍后再试。';
+        retryable = true;
+      }
+
+      return res.status(status).json({
+        code,
+        message,
+        retryable,
+      });
+    }
+  });
+});
+
+export default router;
