@@ -383,4 +383,157 @@ describe('Phase 4-A: SceneRecipe Server-side Creation', () => {
 
     global.fetch = originalFetch;
   });
+
+  it('28. 旧 productProfile 请求被拒绝，且 Gemini 调用为 0', async () => {
+    const badPayload = {
+      productAssetId: 'asset-123',
+      productProfile: VALID_PROFILE, // using old field name
+      guidedQuestions: VALID_GUIDED_QUESTIONS,
+      guidedAnswers: VALID_ANSWERS,
+      sceneDirections: VALID_DIRECTIONS,
+      selectedDirectionId: 'dir-nordic'
+    };
+    const res = await request(app).post('/api/ai/scene-recipe').send(badPayload);
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe('INVALID_REQUEST_BODY');
+    expect(mockClient.generateContent).toHaveBeenCalledTimes(0);
+  });
+
+  it('29. 缺 guidedQuestions 被拒绝，且 Gemini 调用为 0', async () => {
+    const badPayload = { ...VALID_PAYLOAD };
+    delete (badPayload as any).guidedQuestions;
+    const res = await request(app).post('/api/ai/scene-recipe').send(badPayload);
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe('INVALID_REQUEST_BODY');
+    expect(mockClient.generateContent).toHaveBeenCalledTimes(0);
+  });
+
+  it('30. 缺 productAssetId 被拒绝，且 Gemini 调用为 0', async () => {
+    const badPayload = { ...VALID_PAYLOAD };
+    delete (badPayload as any).productAssetId;
+    const res = await request(app).post('/api/ai/scene-recipe').send(badPayload);
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe('INVALID_REQUEST_BODY');
+    expect(mockClient.generateContent).toHaveBeenCalledTimes(0);
+  });
+
+  it('31. firstChars.includes 空字符串 Bug 不再存在；普通纯文本/JSON错误/缺text的Mock处理安全', async () => {
+    const originalFetch = global.fetch;
+    const adapter = new RealAdapter();
+
+    // 1. HTML fallback trigger
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 200,
+      headers: { get: () => 'text/html' },
+      text: async () => '<!doctype html><html><body>Error</body></html>'
+    });
+    await expect(adapter.createSceneRecipe({
+      productAssetId: VALID_PROFILE.productAssetId as any,
+      productProfileSnapshot: VALID_PROFILE as any,
+      guidedQuestions: VALID_GUIDED_QUESTIONS as any,
+      guidedAnswers: VALID_ANSWERS as any,
+      sceneDirections: VALID_DIRECTIONS as any,
+      selectedDirectionId: 'dir-nordic'
+    })).rejects.toThrow('网络拦截或服务端异常：请求接口返回了 HTML 页面');
+
+    // 2. Pure text error (does not misidentify as HTML)
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+      headers: { get: () => 'text/plain' },
+      text: async () => 'Overloaded'
+    });
+    try {
+      await adapter.createSceneRecipe({
+        productAssetId: VALID_PROFILE.productAssetId as any,
+        productProfileSnapshot: VALID_PROFILE as any,
+        guidedQuestions: VALID_GUIDED_QUESTIONS as any,
+        guidedAnswers: VALID_ANSWERS as any,
+        sceneDirections: VALID_DIRECTIONS as any,
+        selectedDirectionId: 'dir-nordic'
+      });
+      expect.fail('Should fail');
+    } catch (err: any) {
+      expect(err.message).toContain('请求失败，状态码: 500');
+    }
+
+    // 3. JSON error structure parsing
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 400,
+      headers: { get: () => 'application/json' },
+      text: async () => JSON.stringify({ code: 'BAD_REQUEST_ERR', message: '参数格式错乱', retryable: false })
+    });
+    try {
+      await adapter.createSceneRecipe({
+        productAssetId: VALID_PROFILE.productAssetId as any,
+        productProfileSnapshot: VALID_PROFILE as any,
+        guidedQuestions: VALID_GUIDED_QUESTIONS as any,
+        guidedAnswers: VALID_ANSWERS as any,
+        sceneDirections: VALID_DIRECTIONS as any,
+        selectedDirectionId: 'dir-nordic'
+      });
+      expect.fail('Should fail');
+    } catch (err: any) {
+      expect(err.message).toBe('参数格式错乱');
+      expect(err.code).toBe('BAD_REQUEST_ERR');
+    }
+
+    // 4. Missing response.text fallback to json
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      headers: { get: () => 'application/json' },
+      json: async () => ({
+        ...VALID_MOCK_RECIPE,
+        productProfileSnapshot: VALID_PROFILE,
+        guidedAnswers: VALID_ANSWERS,
+        schemaVersion: '1.0',
+        recipeId: 'rec-123',
+        version: 1,
+        productAssetId: 'asset-123',
+        selectedDirectionId: 'dir-nordic',
+        task: {
+          operation: 'generate_empty_scene_background',
+          productRole: 'analysis_and_spatial_reference_only',
+          backgroundOnly: true
+        },
+        decoration: {
+          ...VALID_MOCK_RECIPE.decoration,
+          foregroundOcclusion: false
+        },
+        output: {
+          ...VALID_MOCK_RECIPE.output,
+          realism: 'real_commercial_interior_photography'
+        },
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      })
+    });
+    const res = await adapter.createSceneRecipe({
+      productAssetId: VALID_PROFILE.productAssetId as any,
+      productProfileSnapshot: VALID_PROFILE as any,
+      guidedQuestions: VALID_GUIDED_QUESTIONS as any,
+      guidedAnswers: VALID_ANSWERS as any,
+      sceneDirections: VALID_DIRECTIONS as any,
+      selectedDirectionId: 'dir-nordic'
+    });
+    expect(res.recipeId).toBe('rec-123');
+
+    global.fetch = originalFetch;
+  });
+
+  it('32-34. RecipeBody 不要求 realism 与 foregroundOcclusion 且服务端正确注入固定值', async () => {
+    // Mock generateContent returning a valid recipe without realism and foregroundOcclusion
+    mockClient.generateContent.mockResolvedValue({
+      text: JSON.stringify(VALID_MOCK_RECIPE) // This object has decoration without foregroundOcclusion, and output without realism
+    });
+
+    const res = await request(app).post('/api/ai/scene-recipe').send(VALID_PAYLOAD);
+    expect(res.status).toBe(200);
+
+    // Verify injected fields exist and have correct fixed values
+    expect(res.body.decoration.foregroundOcclusion).toBe(false);
+    expect(res.body.output.realism).toBe('real_commercial_interior_photography');
+  });
 });

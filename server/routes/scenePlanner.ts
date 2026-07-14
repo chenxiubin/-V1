@@ -139,11 +139,11 @@ router.post('/scene-directions', async (req: Request, res: Response) => {
 
 router.post('/scene-recipe', async (req: Request, res: Response) => {
   try {
-    const parseResult = CreateRecipeInputSchema.safeParse(req.body);
-    if (!parseResult.success) {
+    const parsedInput = CreateRecipeInputSchema.safeParse(req.body);
+    if (!parsedInput.success) {
       return res.status(400).json({
         code: 'INVALID_REQUEST_BODY',
-        message: '请求参数校验失败：' + parseResult.error.message,
+        message: '请求参数校验失败：' + parsedInput.error.message,
         retryable: false
       });
     }
@@ -155,7 +155,7 @@ router.post('/scene-recipe', async (req: Request, res: Response) => {
       guidedAnswers,
       sceneDirections,
       selectedDirectionId
-    } = parseResult.data;
+    } = parsedInput.data;
 
     const checkProfile = ProductProfileSchema.safeParse(productProfileSnapshot);
     if (!checkProfile.success) return res.status(400).json({ code: 'INVALID_PRODUCT_PROFILE', message: '产品分析数据格式非法', retryable: false });

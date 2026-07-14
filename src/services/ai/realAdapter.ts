@@ -48,7 +48,8 @@ async function parseResponseSafe(response: Response, defaultMessage: string): Pr
   const lowerText = trimmedText.toLowerCase();
 
   // High sensitivity HTML check to prevent iFrame/network proxy redirects from crashing JSON parser
-  if (lowerText.includes('<!doctype') || lowerText.includes('<html') || lowerText.includes('<body')) {
+  const firstChars = lowerText.substring(0, 100);
+  if (firstChars.includes('<!doctype') || firstChars.includes('<html') || firstChars.includes('<body')) {
     const err = new Error('网络拦截或服务端异常：请求接口返回了 HTML 页面。这通常是由于未登录、第三方拦截或服务端路由未就绪引起的。');
     (err as any).code = 'NETWORK_INTERCEPTED';
     (err as any).status = 502;

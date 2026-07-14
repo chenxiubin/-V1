@@ -39,7 +39,7 @@
   - **CreateRecipeInput 契约完全确立**：前端输入参数通过 `CreateRecipeInputSchema` 强约束，在 API 最入口处使用 `safeParse`，杜绝任何旧参数兼容和 fallback 门禁，字段缺少任意一个立即返回 400 且零调用 Gemini。
   - **服务端可信注入与防篡改**：所有固定/派生字段（如 `schemaVersion`, `recipeId`, `version`, `productAssetId`, `productProfileSnapshot`, `guidedAnswers`, `selectedDirectionId`, `task`, `createdAt`, `updatedAt`）全部由 Node.js 服务端进行安全强注入。
   - **RecipeBodySchema 校验与单次 Repair**：定义了精简的 `RecipeBodySchema` 并彻底移除 `foregroundOcclusion`（改由服务端直接注入 `false`），并在每次大模型响应后通过该 Schema 强校验 Zod 枚举/字段完整度，单次失败后支持一次 Repair，第二次仍失败返回特定的 `GEMINI_RECIPE_PARSE_FAILED` 错误。
-  - **精细超时配置与中断支持**：引入了全新的 `GEMINI_RECIPE_TIMEOUT_MS` 配置（默认 `120000`ms）替代原有的 Analysis 超时参数，支持底层请求的自动 cancellation。
+  - **精细超时配置与中断支持**：引入了全新的 `GEMINI_RECIPE_TIMEOUT_MS` 配置（默认 `120000`ms）替代原有的 Analysis 超时参数。目前使用 Promise.race 机制，超时不能保证取消底层 Gemini 请求，可能继续消耗额度。
   - **RealAdapter 强特征 JSON 拦截**：增加对网络拦截 HTML 响应的高敏感检测，若包含 `<!doctype`, `<html`, `<body` 时直接触发强特征的 `NETWORK_INTERCEPTED` 错误，杜绝 JSON.parse 崩溃。
   - **测试套件与物理清理**：完成测试重写，提供高覆盖度、高保真的测试结果，并对工作区内所有的临时 `.cjs` 和 `update-routes.js` 文件执行了物理清理。
 - **Phase 7-B**：TemplateSuite 基础系统设计与开发：
