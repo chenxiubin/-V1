@@ -1,5 +1,7 @@
 import { SceneRecipeSchema, PromptDocument, SceneRecipe } from '../../types/schemas.js';
 
+export const PROMPT_COMPILER_VERSION = 'prompt-compiler-1.0';
+
 function scanForSensitiveStrings(obj: any): void {
   if (typeof obj === 'string') {
     const s = obj.toLowerCase();
@@ -198,7 +200,7 @@ ${sections.outputConstraints}`;
   const promptDoc: PromptDocument = {
     recipeId: recipe.recipeId,
     recipeVersion: recipe.version,
-    compilerVersion: 'prompt-compiler-1.0',
+    compilerVersion: PROMPT_COMPILER_VERSION,
     sections,
     fullPrompt,
     fullJson,

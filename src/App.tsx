@@ -344,6 +344,7 @@ export default function App() {
       setLocalPreviewUrl(url);
 
       // 5. Update Project Store state
+      recipeRequestIdRef.current += 1;
       projectStore.importProduct(productAsset);
 
       // 6. Automatically save project to DB
@@ -591,6 +592,7 @@ export default function App() {
 
     // Increment scene directions request ID to invalidate any in-flight requests
     sceneDirectionsRequestIdRef.current += 1;
+    recipeRequestIdRef.current += 1;
 
     projectStore.updateState((s) => {
       const answers = [...s.guidedAnswers.filter(a => a.questionId !== questionId), {
@@ -614,6 +616,7 @@ export default function App() {
 
     // Increment scene directions request ID to invalidate any in-flight requests
     sceneDirectionsRequestIdRef.current += 1;
+    recipeRequestIdRef.current += 1;
 
     projectStore.updateState((s) => {
       let answers = [...s.guidedAnswers];
@@ -805,11 +808,13 @@ export default function App() {
   const handleDirectionSelect = (directionId: string) => {
     const exists = (state.sceneDirections || []).some(d => d.id === directionId);
     if (!exists) return;
+    recipeRequestIdRef.current += 1;
     projectStore.selectDirection(directionId);
   };
 
   const handleConfirmDirection = async () => {
     if (!state.selectedDirectionId) return;
+    if (state.recipeRequestStatus === 'loading') return;
 
     if (!state.productProfile) {
       setErrorMessage({ message: '缺少 ProductProfile', retryable: false });
@@ -832,6 +837,10 @@ export default function App() {
 
     setLoading(true);
     setErrorMessage(null);
+
+    // Save snapshot of state prior to committing
+    const snapshot = JSON.parse(JSON.stringify(projectStore.getState()));
+
     projectStore.updateState(() => ({
       recipeRequestStatus: 'loading',
       recipeError: null
@@ -852,22 +861,26 @@ export default function App() {
 
       if (requestId !== recipeRequestIdRef.current) return;
 
-      const validatedRecipe = SceneRecipeSchema.parse(recipe);
-      const promptDoc = compilePromptDocument(validatedRecipe);
-      const validatedPromptDoc = PromptDocumentSchema.parse(promptDoc);
+      // Use unique store commit method
+      projectStore.commitInitialRecipe(recipe);
 
-      projectStore.updateState((s) => ({
-        sceneRecipe: validatedRecipe,
-        promptDocument: validatedPromptDoc,
-        recipeRequestStatus: 'success',
-        recipeError: null,
-        status: 'RECIPE_READY',
-        sceneRecipes: [validatedRecipe],
-        activeVersion: 1
-      }));
+      // Attempt to persist to database
+      try {
+        await projectStore.persistToDB();
+        await refreshSavedProjects();
+      } catch (persistErr: any) {
+        console.error('Failed to persist to DB:', persistErr);
+        if (requestId !== recipeRequestIdRef.current) return;
 
-      await projectStore.persistToDB();
-      await refreshSavedProjects();
+        // Roll back state to the pre-commit snapshot, retaining the error
+        projectStore.updateState(() => ({
+          ...snapshot,
+          recipeRequestStatus: 'error',
+          recipeError: '场景配方保存失败，请重新尝试'
+        }));
+        setErrorMessage({ message: '场景配方保存失败，请重新尝试', retryable: true });
+        return;
+      }
 
     } catch (err: any) {
       console.error('Failed to create recipe:', err);
@@ -936,6 +949,7 @@ export default function App() {
   };
 
   const handleChangeSceneDirection = () => {
+    recipeRequestIdRef.current += 1;
     projectStore.changeSceneDirection();
     setPatchSuccessMessage(null);
     setShowHistory(false);
@@ -944,6 +958,7 @@ export default function App() {
   const handleRefreshDirections = async () => {
     if (!state.productProfile) return;
     setLoading(true);
+    recipeRequestIdRef.current += 1;
     setSceneDirectionsRequestStatus('loading');
     setSceneDirectionsError(null);
     setErrorMessage(null);

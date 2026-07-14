@@ -22,9 +22,9 @@ import {
 import { RealAdapter } from '../services/ai/realAdapter';
 import { validateGuidedAnswerCoverage, validateSceneDirectionSet, getSafeRecoveryState } from './phase3StateValidation';
 import { saveProject, getProject } from '../lib/db';
-import { compilePromptDocument } from '../services/ai/promptCompiler';
+import { compilePromptDocument, PROMPT_COMPILER_VERSION } from '../services/ai/promptCompiler';
 import { applyRecipePatch } from '../services/ai/recipePatch';
-import { SceneRecipeSchema } from '../types/schemas';
+import { SceneRecipeSchema, PromptDocumentSchema } from '../types/schemas';
 
 export class ProjectStore {
   private state: ProjectState;
@@ -430,6 +430,59 @@ export class ProjectStore {
       activeVersion: 1,
       sceneRecipe: newRecipe,
       promptDocument: promptDoc,
+      sceneAsset: null,
+    }));
+  }
+
+  commitInitialRecipe(recipe: SceneRecipe): void {
+    // 1. 执行 SceneRecipeSchema.safeParse
+    const recipeCheck = SceneRecipeSchema.safeParse(recipe);
+    if (!recipeCheck.success) {
+      throw new Error(`SceneRecipe 校验未通过: ${recipeCheck.error.message}`);
+    }
+
+    // 2. 调用 compilePromptDocument (or handle throw)
+    let prompt;
+    try {
+      prompt = compilePromptDocument(recipeCheck.data);
+    } catch (e: any) {
+      throw new Error(`编译 Prompt 失败: ${e.message || e}`);
+    }
+
+    // 3. 执行 PromptDocumentSchema.safeParse
+    const promptCheck = PromptDocumentSchema.safeParse(prompt);
+    if (!promptCheck.success) {
+      throw new Error(`PromptDocument 校验未通过: ${promptCheck.error.message}`);
+    }
+
+    const validatedPrompt = promptCheck.data;
+    const validatedRecipe = recipeCheck.data;
+
+    // 4. 校验
+    if (validatedPrompt.recipeId !== validatedRecipe.recipeId) {
+      throw new Error('校验失败: prompt.recipeId 与 recipe.recipeId 不匹配');
+    }
+    if (validatedPrompt.recipeVersion !== validatedRecipe.version) {
+      throw new Error('校验失败: prompt.recipeVersion 与 recipe.version 不匹配');
+    }
+    if (validatedPrompt.compilerVersion !== PROMPT_COMPILER_VERSION) {
+      throw new Error(`校验失败: prompt.compilerVersion 与当前编译器版本 ${PROMPT_COMPILER_VERSION} 不匹配`);
+    }
+
+    // 5. 所有步骤完成后，才执行一次 updateState
+    this.updateState(() => ({
+      sceneRecipe: validatedRecipe,
+      promptDocument: validatedPrompt,
+      sceneRecipes: [validatedRecipe],
+      recipeVersions: [{
+        recipe: validatedRecipe,
+        promptDocument: validatedPrompt,
+        createdAt: validatedRecipe.createdAt
+      }],
+      activeVersion: validatedRecipe.version,
+      recipeRequestStatus: 'success',
+      recipeError: null,
+      status: 'RECIPE_READY',
       sceneAsset: null,
     }));
   }
@@ -978,18 +1031,80 @@ export class ProjectStore {
       }
     }
 
+    // --- Pre-repair / sanitize recipe-related fields prior to global Zod parsing ---
+    
+    // 1. Repair missing promptDocument in recipeVersions
+    if (Array.isArray(sanitizedData.recipeVersions)) {
+      sanitizedData.recipeVersions = sanitizedData.recipeVersions.map((entry: any) => {
+        if (!entry) return entry;
+        let promptDoc = entry.promptDocument;
+        if (!promptDoc && entry.recipe) {
+          try {
+            promptDoc = compilePromptDocument(entry.recipe);
+          } catch (e) {
+            // fallback
+          }
+        }
+        return {
+          ...entry,
+          promptDocument: promptDoc || {
+            recipeId: entry.recipe?.recipeId || 'temp-id',
+            recipeVersion: entry.recipe?.version || 1,
+            compilerVersion: PROMPT_COMPILER_VERSION,
+            sections: {
+              taskAndReferences: 'task',
+              productMatching: 'matching',
+              sceneAndStyle: 'style',
+              cameraAndComposition: 'composition',
+              lightingAndDecoration: 'lighting',
+              outputConstraints: 'constraints'
+            },
+            fullPrompt: 'temp',
+            fullJson: '{}',
+            objectJson: { task: '{}', scene: '{}', composition: '{}', lighting: '{}', decoration: '{}', output: '{}' },
+            createdAt: new Date().toISOString()
+          }
+        };
+      });
+    }
+
+    // 2. Filter out invalid/illegal recipes from recipeVersions
+    if (Array.isArray(sanitizedData.recipeVersions)) {
+      sanitizedData.recipeVersions = sanitizedData.recipeVersions.filter((entry: any) => {
+        if (!entry || !entry.recipe) return false;
+        const check = SceneRecipeSchema.safeParse(entry.recipe);
+        return check.success;
+      });
+    }
+
+    // 3. Validate active sceneRecipe schema
+    if (sanitizedData.sceneRecipe) {
+      const check = SceneRecipeSchema.safeParse(sanitizedData.sceneRecipe);
+      if (!check.success) {
+        // Rollback whole recipe state to DIRECTION_SELECTION
+        sanitizedData.status = 'DIRECTION_SELECTION';
+        sanitizedData.sceneRecipe = null;
+        sanitizedData.promptDocument = null;
+        sanitizedData.activeVersion = null;
+        sanitizedData.sceneRecipes = [];
+        sanitizedData.recipeVersions = [];
+        sanitizedData.sceneAsset = null;
+        sanitizedData.matchReport = null;
+      }
+    }
+
     // Explicit schema constraint
     const parsed = ProjectStateSchema.safeParse(sanitizedData);
     if (!parsed.success) {
       throw new Error(`无法恢复项目: 数据库持久化数据已损坏、不合法或 schemaVersion 不兼容。 Zod 报错: ${parsed.error.message}`);
     }
 
-    const stateData = parsed.data;
+    let stateData = { ...parsed.data };
 
     // --- Phase 4 Consistency recovery defense ---
     if (stateData.productAsset && stateData.productProfile && stateData.productAsset.id !== stateData.productProfile.productAssetId) {
       console.warn('Persistence recovery triggered: productAsset.id and productProfile.productAssetId do not match. Rolling back to PRODUCT_IMPORTED.');
-      const rolledBackData = {
+      stateData = {
         ...stateData,
         status: 'PRODUCT_IMPORTED' as const,
         productProfile: null,
@@ -1012,108 +1127,128 @@ export class ProjectStore {
         ignoredMatchIssueIds: [],
         recipeVersions: [],
       };
-      
-      this.state = rolledBackData;
-      this.notify();
-      return;
-    }
+    } else {
+      // Prioritize restoring from recipeVersions as authority (Scenario F)
+      const rawVersions = stateData.recipeVersions || [];
+      const validVersions: typeof stateData.recipeVersions = [];
 
-    // --- 1. History Corruption Checks (Rule 5: 历史损坏时不得直接写入 Store) ---
-    const versionMap = new Map<number, typeof stateData.recipeVersions[0]>();
-    
-    for (const entry of stateData.recipeVersions) {
-      const v = entry.recipe.version;
-      
-      // 1.1: Unique version inside recipeVersions
-      if (versionMap.has(v)) {
-        throw new Error(`无法恢复项目: 历史版本中存在重复的版本号 V${v}。`);
-      }
-      versionMap.set(v, entry);
+      for (const entry of rawVersions) {
+        // Validate recipe (Scenario E)
+        const recipeCheck = SceneRecipeSchema.safeParse(entry.recipe);
+        if (!recipeCheck.success) {
+          // If recipe is invalid, discard this version history entry
+          continue;
+        }
+        const validatedRecipe = recipeCheck.data;
 
-      // 1.2: Recipe and PromptDocument recipeId/recipeVersion consistency
-      if (entry.recipe.recipeId !== entry.promptDocument.recipeId) {
-        throw new Error(`无法恢复项目: 历史版本 V${v} 中 Recipe 与 PromptDocument 的 recipeId 不一致。`);
-      }
-      if (entry.recipe.version !== entry.promptDocument.recipeVersion) {
-        throw new Error(`无法恢复项目: 历史版本 V${v} 中 Recipe 与 PromptDocument 的 version 不一致。`);
-      }
-    }
+        // Check if PromptDocument exists and is valid and matches (Scenarios B, C, D)
+        let promptDoc = entry.promptDocument;
+        let needsRecompile = false;
 
-    // 1.3: sceneRecipes and recipeVersions exact consistency
-    if (stateData.sceneRecipes.length !== stateData.recipeVersions.length) {
-      throw new Error(`无法恢复项目: sceneRecipes 与 recipeVersions 数量不一致。`);
-    }
-    
-    for (const r of stateData.sceneRecipes) {
-      const entry = versionMap.get(r.version);
-      if (!entry) {
-        throw new Error(`无法恢复项目: sceneRecipes 中的版本号 V${r.version} 在 recipeVersions 中不存在。`);
-      }
-      if (JSON.stringify(r) !== JSON.stringify(entry.recipe)) {
-        throw new Error(`无法恢复项目: sceneRecipes 中的 V${r.version} 与 recipeVersions 中的内容不一致。`);
-      }
-    }
-
-    // --- 2. Active Version / Pointer / Mismatch Checks & Safe Recovery (Rule 6) ---
-    let recoveredData = { ...stateData };
-
-    const requiresRecipe = [
-      'RECIPE_READY',
-      'AWAITING_EXTERNAL_GENERATION',
-      'PREVIEW_IMPORTED',
-      'ANALYZING_MATCH',
-      'NEEDS_REVISION',
-      'APPROVED',
-      'SERIES_ACTIVE'
-    ].includes(recoveredData.status);
-
-    if (requiresRecipe) {
-      let needsRecovery = false;
-      
-      if (recoveredData.activeVersion === null) {
-        needsRecovery = true;
-      } else {
-        const currentEntry = versionMap.get(recoveredData.activeVersion);
-        if (!currentEntry) {
-          needsRecovery = true;
+        if (!promptDoc) {
+          // Scenario B: PromptDocument missing
+          needsRecompile = true;
         } else {
-          // Check if current pointers match
-          const recipeMismatch = JSON.stringify(recoveredData.sceneRecipe) !== JSON.stringify(currentEntry.recipe);
-          const promptMismatch = JSON.stringify(recoveredData.promptDocument) !== JSON.stringify(currentEntry.promptDocument);
-          if (recipeMismatch || promptMismatch) {
-            needsRecovery = true;
+          const promptCheck = PromptDocumentSchema.safeParse(promptDoc);
+          if (!promptCheck.success) {
+            // Invalid prompt schema
+            needsRecompile = true;
+          } else {
+            const vPrompt = promptCheck.data;
+            if (vPrompt.recipeId !== validatedRecipe.recipeId || vPrompt.recipeVersion !== validatedRecipe.version) {
+              // Scenario D: Mismatched ID or version
+              needsRecompile = true;
+            } else if (vPrompt.compilerVersion !== PROMPT_COMPILER_VERSION) {
+              // Scenario C: Compiler version mismatched
+              needsRecompile = true;
+            }
           }
         }
+
+        if (needsRecompile) {
+          try {
+            promptDoc = compilePromptDocument(validatedRecipe);
+          } catch (e) {
+            // If compilation fails, skip this entry
+            continue;
+          }
+        }
+
+        validVersions.push({
+          recipe: validatedRecipe,
+          promptDocument: promptDoc!,
+          sourceMatchReportId: entry.sourceMatchReportId,
+          createdAt: entry.createdAt || validatedRecipe.createdAt
+        });
       }
 
-      if (needsRecovery) {
-        if (recoveredData.recipeVersions.length > 0) {
-          // Rollback to the latest valid version in history
-          const sortedVersions = [...recoveredData.recipeVersions].sort((a, b) => b.recipe.version - a.recipe.version);
-          const latestEntry = sortedVersions[0];
-          
-          recoveredData.activeVersion = latestEntry.recipe.version;
-          recoveredData.sceneRecipe = latestEntry.recipe;
-          recoveredData.promptDocument = latestEntry.promptDocument;
-          recoveredData.status = 'RECIPE_READY';
-          recoveredData.sceneAsset = null;
-          recoveredData.matchReport = null;
-        } else {
-          // Fallback to DIRECTION_SELECTION state before RECIPE_READY
-          recoveredData.status = 'DIRECTION_SELECTION';
-          recoveredData.sceneRecipe = null;
-          recoveredData.promptDocument = null;
-          recoveredData.activeVersion = null;
-          recoveredData.sceneRecipes = [];
-          recoveredData.recipeVersions = [];
-          recoveredData.sceneAsset = null;
-          recoveredData.matchReport = null;
+      const requiresRecipe = [
+        'RECIPE_READY',
+        'AWAITING_EXTERNAL_GENERATION',
+        'PREVIEW_IMPORTED',
+        'ANALYZING_MATCH',
+        'NEEDS_REVISION',
+        'APPROVED',
+        'SERIES_ACTIVE'
+      ].includes(stateData.status);
+
+      const hasAnyRecipeHistory = (stateData.sceneRecipes && stateData.sceneRecipes.length > 0) ||
+                                  (stateData.recipeVersions && stateData.recipeVersions.length > 0) ||
+                                  !!stateData.sceneRecipe || !!stateData.promptDocument;
+
+      if (validVersions.length === 0) {
+        if (requiresRecipe || hasAnyRecipeHistory) {
+          // Fallback to DIRECTION_SELECTION state before RECIPE_READY (Scenario E & F)
+          stateData.status = 'DIRECTION_SELECTION';
+          stateData.sceneRecipe = null;
+          stateData.promptDocument = null;
+          stateData.activeVersion = null;
+          stateData.sceneRecipes = [];
+          stateData.recipeVersions = [];
+          stateData.sceneAsset = null;
+          stateData.matchReport = null;
+          stateData.recipeRequestStatus = 'idle';
+          stateData.recipeError = null;
+        }
+      } else {
+        // Reconstruct sceneRecipes and recipeVersions to be 100% synchronized and consistent
+        validVersions.sort((a, b) => a.recipe.version - b.recipe.version);
+
+        // Ensure version numbers are unique (Scenario F)
+        const uniqueVersions: typeof validVersions = [];
+        const seenVersions = new Set<number>();
+        for (const v of validVersions) {
+          if (!seenVersions.has(v.recipe.version)) {
+            seenVersions.add(v.recipe.version);
+            uniqueVersions.push(v);
+          }
+        }
+
+        stateData.recipeVersions = uniqueVersions;
+        stateData.sceneRecipes = uniqueVersions.map(uv => uv.recipe);
+
+        // Align the current sceneRecipe and promptDocument pointers
+        let targetVersion = stateData.activeVersion;
+        let matchedEntry = targetVersion !== null ? uniqueVersions.find(uv => uv.recipe.version === targetVersion) : undefined;
+
+        if (!matchedEntry) {
+          // Fallback to latest version
+          matchedEntry = uniqueVersions[uniqueVersions.length - 1];
+          targetVersion = matchedEntry.recipe.version;
+        }
+
+        stateData.activeVersion = targetVersion;
+        stateData.sceneRecipe = matchedEntry.recipe;
+        stateData.promptDocument = matchedEntry.promptDocument;
+
+        if (requiresRecipe && stateData.status === 'DIRECTION_SELECTION') {
+          stateData.status = 'RECIPE_READY';
         }
       }
     }
 
     // Apply Phase 3 semantic safety recovery
-    const safeData = getSafeRecoveryState(recoveredData);
+    const safeData = getSafeRecoveryState(stateData);
 
     // Ensure state machine is valid too
     const statusCheck = this.canTransitionTo(safeData.status, safeData);

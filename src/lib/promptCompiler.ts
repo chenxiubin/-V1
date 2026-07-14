@@ -1,7 +1,7 @@
 import { SceneRecipe, PromptDocument } from '../types/schemas.js';
-import { compilePromptDocument } from '../services/ai/promptCompiler.js';
+import { compilePromptDocument, PROMPT_COMPILER_VERSION } from '../services/ai/promptCompiler.js';
 
-export const COMPILER_VERSION = 'prompt-compiler-1.0';
+export const COMPILER_VERSION = PROMPT_COMPILER_VERSION;
 
 /**
  * Legacy compatibility adapter. Delegating 100% to compilePromptDocument
