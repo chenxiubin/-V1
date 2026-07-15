@@ -36,7 +36,7 @@ import { AnalyzeMatchInput } from './types/schemas';
 import { TemplateGallery } from './components/TemplateGallery';
 import { TemplateDetailView } from './components/TemplateDetailView';
 import { CanvasInteractionEditor } from './components/CanvasInteractionEditor';
-import { ModelCenterPanel } from './components/ModelCenterPanel';
+const ModelCenterPanel = React.lazy(() => import('./components/ModelCenterPanel').then(m => ({ default: m.ModelCenterPanel })));
 import { ModelDiscoveryClient } from './services/modelDiscoveryClient';
 import { ProductionWorkspace } from './components/ProductionWorkspace';
 import { MOCK_TEMPLATES } from './data/mockTemplates';
@@ -2186,7 +2186,7 @@ export default function App() {
       </main>
       
 
-      {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+      {showModelCenter && <React.Suspense fallback={<div>Loading Model Center...</div>}><ModelCenterPanel onClose={() => setShowModelCenter(false)} /></React.Suspense>}
     </div>
   );
 }

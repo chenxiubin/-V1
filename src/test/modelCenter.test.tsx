@@ -6,6 +6,15 @@ import { ModelCenterPanel } from '../components/ModelCenterPanel';
 import { ModelDiscoveryClient } from '../services/modelDiscoveryClient';
 import App from '../App';
 
+
+vi.mock('../lib/db', () => ({
+  initDB: vi.fn().mockResolvedValue(true),
+  getProject: vi.fn().mockResolvedValue(null),
+  listProjects: vi.fn().mockResolvedValue([]),
+  saveProject: vi.fn(),
+  deleteProject: vi.fn()
+}));
+
 vi.mock('../services/modelDiscoveryClient', () => ({
   ModelDiscoveryClient: {
     fetchModels: vi.fn()

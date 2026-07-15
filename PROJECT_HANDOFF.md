@@ -1,35 +1,24 @@
 # 项目交接状态 (Project Handoff)
 
 ## 核心目标
-这是一个供摄影师、设计师以及电商运营使用的产品空场景图 AI 生成匹配预览平台。当前处于 Phase 4-C 阶段的完善工作。
+这是一个供摄影师、设计师以及电商运营使用的产品空场景图 AI 生成匹配预览平台。当前处于模型中心阶段 M1-D-2。
 
 ## 已完成阶段
-- Phase 1: 需求对齐与脚手架搭建。
-- Phase 2: Mock 产品分析阶段闭环。
-- Phase 3: Gemini 提示词编译、服务端生成方向、Recipe，重构服务端架构。
-- Phase 4-A: Server-side API 重构，使用 @google/genai 和 Express 中间件。
-- Phase 4-B: MatchReport 完整定义与 Schema。
-- Phase 4-C-1: Phase 1 到 Phase 4 之间的真实全链路整合与组件迁移。
-- Phase 4-C-2: Match Report UI 和交互适配。
-- Phase 4-C-3: 外部空场景导入、确定性产品叠加预览与统一 MatchReport 链路最终修复。
+- Phase 1 - 4: 基础结构与核心功能的脚手架、真实全链路整合、空场景导入、分析、以及配方采纳整合。
+- 模型中心 M1-A: 模型发现接口，通过 Gemini API 获取当前可用模型。
+- 模型中心 M1-D: 模型中心前端接入、单实例挂载、兼容性过滤（区分兼容与不兼容模型展示）。
+- 模型中心 M1-D-2: 错误脱敏闭环、测试环境隔离与构建警告处理、交接文档收口。
 
-## 当前系统关键结构
-唯一正式结构：
-- `SceneAssetSchema`: 包含场景图属性与 IndexedDB `persistedAssetRef` 和内容哈希。
-- `AnalyzeMatchInputSchema`: 包含 productAsset、sceneAsset、overlayPreviewRef、sceneRecipe、promptDocument。
-- `MatchReportSchema`: Gemini 返回的结构化报告，含 issues, pass, suggestedPatch。
-- `ProductScenePreview`: 纯视觉产品叠加图预览。
-- `MatchReportPanel`: 匹配报告展示。
-- `/api/ai/analyze-match`: 唯一匹配分析后端接口。
+## 当前阶段 (M1-D-2) 关键事实
+1. **模型发现接口**：使用 `GeminiModelDiscoveryService`，自动合并获取可用模型列表并缓存 5 分钟。支持查询字符串 `?refresh=true` 强制刷新。
+2. **脱敏机制闭环**：`sanitizeModelDiscoveryError` 作为唯一脱敏出口，保证不包含 `sk-`、`AIza`、Bearer/Token、图片 Base64 与本地路径。服务端路由层通过该方法仅输出安全摘要，当发生刷新失败时，`stale` 缓存状态下的 `refreshError` 也是被脱敏的安全字符串，不泄露原始错误。
+3. **前端模型列表只读**：App 顶部只有一个“当前模型”按钮。点击按钮全局只打开一个 `ModelCenterPanel`，支持通过 Esc、点击遮罩或关闭按钮进行关闭。
+4. **模型支持信息**：已将 `models/` 前缀移除。目前模型中心只展示模型，官方今日剩余额度无法通过 models API 获取（界面提示）。无法兼容的模型不在此区域列出。无切换操作，仅展示。
+5. **拆包优化**：主应用入口 `App.tsx` 使用 `React.lazy` 对 `ModelCenterPanel` 进行了懒加载，以降低单文件过大。
+
+## 已知问题与后续方案
+1. **构建包体警告**：在构建 `npm run build` 时，主 Chunk（如 vendor/第三方依赖大包）因为包含了大量 UI 框架及 React 生态依然可能超过 500KB 限制。已采用 `React.lazy` 懒加载业务组件，但更彻底的第三方依赖拆分（`manualChunks`）可能有高风险，目前保留该警告但不影响首屏使用。
+2. **测试文件隔离**：针对 `modelCenter.test.tsx` 和 `modelsRoute.test.ts` 进行专项隔离。`modelCenter.test.tsx` 通过 mock `../lib/db` 解除了此前由于缺少 IndexedDB 等引起的关联报错，目前测试全部绿灯，日志和 stderr 中不再有未预期输出。
 
 ## 待完成工作
-- Phase 4-C-4: 基于 MatchReport 的 RecipePatch 采纳、忽略、版本创建和恢复最终整合。
-
-## 历史遗留概念与弃用
-已删除如下旧概念与功能实现：
-- `SceneMatchReportView`, `IMAGE_IMPORTED`, `MATCH_ANALYZING`, `MATCH_READY` 状态弃用。
-- 旧分析接口 `/api/ai/analyze-scene-match` 弃用。
-- Mock / Gemini 用户界面切换弃用。
-- 雷达图、下载修复包、自动修正 Prompt 弃用。
-- 下一步 Canvas 编辑器、RunningHub 集成、光影融合弃用。
-
+- **模型中心 M2**: 下一阶段进入 M2，即实现模型选择功能。引入 `selectedModelId`、模型切换回调函数，并将用户的模型选择持久化保存（如 LocalStorage 或 IndexedDB），随后应用到平台其他业务（如场景描述和分析）的实际 API 请求中去。

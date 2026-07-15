@@ -6,6 +6,7 @@ import {
   SceneDirection,
   SceneDirectionSchema,
   SceneRecipe,
+  SceneRecipeSchema,
   MatchReport,
   MatchReportSchema,
   RecipePatchOperation
@@ -351,7 +352,7 @@ export class RealAdapter implements SceneIntelligenceAdapter {
     const data = await parseResponseSafe(response, '未知服务端错误');
     
     // Additional Schema Check dynamically if needed, but since it's real adapter we can use imported schemas
-    const { SceneRecipeSchema } = await import('../../types/schemas');
+    // Removed dynamic import of schemas as it is already statically imported
     const parseResult = SceneRecipeSchema.safeParse(data);
     if (!parseResult.success) {
       const zodErr = new Error(`服务端创建 SceneRecipe 校验失败: ${parseResult.error.issues.map(i => i.message).join(', ')}`);

@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { GeminiModelDiscoveryService } from '../services/geminiModelDiscovery.js';
+import { GeminiModelDiscoveryService, sanitizeModelDiscoveryError } from '../services/geminiModelDiscovery.js';
 
 const router = Router();
 const modelDiscoveryService = new GeminiModelDiscoveryService();
@@ -10,7 +10,9 @@ router.get('/models', async (req: Request, res: Response) => {
     const result = await modelDiscoveryService.getAvailableModels(refresh);
     res.json(result);
   } catch (error: any) {
-    console.error('[AI Models] Error fetching models:', error);
+    const sanitized = sanitizeModelDiscoveryError(error);
+    console.error('[AI Models] Error fetching models:', JSON.stringify(sanitized));
+
     if (error.code) {
       res.status(503).json({
         code: error.code,
@@ -19,9 +21,9 @@ router.get('/models', async (req: Request, res: Response) => {
       });
     } else {
       res.status(500).json({
-        code: 'MODEL_LIST_UNAVAILABLE',
+        code: sanitized.code,
         message: '暂时无法获取当前项目可用模型，请稍后刷新。',
-        retryable: true
+        retryable: sanitized.retryable
       });
     }
   }

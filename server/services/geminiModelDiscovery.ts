@@ -47,8 +47,8 @@ export function sanitizeModelDiscoveryError(error: any) {
   let msg = error?.message ? String(error.message).substring(0, 200) : 'Unknown error';
   
   // Redact secrets
-  msg = msg.replace(/AIza[a-zA-Z0-9_-]{35}/g, '[REDACTED]')
-           .replace(/sk-[a-zA-Z0-9]{40,}/g, '[REDACTED]')
+  msg = msg.replace(/AIza[a-zA-Z0-9_-]+/g, '[REDACTED]')
+           .replace(/sk-[a-zA-Z0-9]+/g, '[REDACTED]')
            .replace(/(Bearer|api_key=|key=|token=|access_token=)[^&\s'"]+/gi, '$1[REDACTED]')
            .replace(/Authorization:\s*[^'"\s]+/gi, 'Authorization: [REDACTED]')
            .replace(/data:image\/[^;]+;base64,[a-zA-Z0-9+/=]+/gi, '[REDACTED]')
@@ -100,7 +100,7 @@ export class GeminiModelDiscoveryService {
         if (this.cache) {
           // If we have a cache, serve stale cache with an error note
           this.cache.stale = true;
-          this.cache.refreshError = error.message;
+          this.cache.refreshError = sanitizeModelDiscoveryError(error).messageSummary;
           return this.cache;
         }
         
