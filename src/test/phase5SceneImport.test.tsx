@@ -109,7 +109,7 @@ describe('Phase 5-A-1: Scene Import', () => {
             mimeType: 'image/png',
             width: 100,
             height: 100,
-            productAssetId: 'dummy-product-id', recipeId: 'dummy-recipe-id', recipeVersion: 1, size: 1024, contentHash: 'dummy-hash', persistedAssetRef: 'data:image/png;base64,mock',
+            persistedAssetRef: 'data:image/png;base64,mock',
             createdAt: new Date().toISOString()
         } 
     } as any));

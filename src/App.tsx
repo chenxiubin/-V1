@@ -949,6 +949,8 @@ export default function App() {
       if (err.message) {
         if (err.message.includes('当前产品与场景规划数据不一致') || err.code === 'PRODUCT_ASSET_MISMATCH') {
           errorMsg = err.message;
+        } else if (err.code === 'GEMINI_RECIPE_PARSE_FAILED') {
+          errorMsg = '生成配方失败：模型生成的格式不符合要求，请重试';
         } else {
           errorMsg += `: ${err.message}`;
         }
