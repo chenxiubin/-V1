@@ -35,6 +35,23 @@ export interface ModelDiscoveryResult {
 
 const CACHE_DURATION_MS = 5 * 60 * 1000; // 5 minutes
 
+export function getSupportedModelActions(model: any): string[] {
+  const actions = Array.isArray(model?.supportedActions) ? model.supportedActions : [];
+  const methods = Array.isArray(model?.supportedGenerationMethods) ? model.supportedGenerationMethods : [];
+  const combined = Array.from(new Set([...actions, ...methods]));
+  return combined.filter((s): s is string => typeof s === 'string');
+}
+
+export function sanitizeModelDiscoveryError(error: any) {
+  return {
+    code: error?.status || error?.code || 'UNKNOWN',
+    status: error?.status || 500,
+    retryable: error?.status !== 400 && error?.status !== 403,
+    messageSummary: error?.message ? String(error.message).substring(0, 100) : 'Unknown error',
+    hasStaleCache: false // will be updated contextually if needed
+  };
+}
+
 export class GeminiModelDiscoveryService {
   private cache: ModelDiscoveryResult | null = null;
   private pendingRequest: Promise<ModelDiscoveryResult> | null = null;
@@ -50,15 +67,15 @@ export class GeminiModelDiscoveryService {
       throw err;
     }
 
+    if (this.pendingRequest) {
+      return this.pendingRequest;
+    }
+
     const now = Date.now();
     if (!refresh && this.cache && now < new Date(this.cache.cacheExpiresAt).getTime()) {
       // Current configuration model id should be updated even on cache hit, in case env changes without restart
       this.cache.currentConfiguredModelId = currentConfiguredModelId;
       return this.cache;
-    }
-
-    if (this.pendingRequest && !refresh) {
-      return this.pendingRequest;
     }
 
     this.pendingRequest = this.fetchModelsFromGoogle(apiKey, currentConfiguredModelId, now)
@@ -84,7 +101,7 @@ export class GeminiModelDiscoveryService {
           throw err;
         }
         
-        const err = new Error('暂时无法获取当前项目可用模型，请稍后刷新。');
+        const err = new Error('暂时无法获取当前项目可用模型，请稍后重试。');
         (err as any).code = 'MODEL_LIST_UNAVAILABLE';
         (err as any).retryable = true;
         throw err;
@@ -104,7 +121,9 @@ export class GeminiModelDiscoveryService {
         allModels.push(m);
       }
     } catch (error: any) {
-      console.error("fetchModelsFromGoogle ERROR:", error.stack || error);
+      const sanitized = sanitizeModelDiscoveryError(error);
+      sanitized.hasStaleCache = !!this.cache;
+      console.error("[MODEL_DISCOVERY_ERROR]", JSON.stringify(sanitized));
       throw error;
     }
 
@@ -112,7 +131,7 @@ export class GeminiModelDiscoveryService {
 
     for (const model of allModels) {
       const id = model.name.replace(/^models\//, '');
-      const supportedMethods = model.supportedActions || model.supportedGenerationMethods || [];
+      const supportedMethods = getSupportedModelActions(model);
       
       // We only care about generateContent models
       if (!supportedMethods.includes('generateContent')) {
@@ -160,3 +179,4 @@ export class GeminiModelDiscoveryService {
     };
   }
 }
+
