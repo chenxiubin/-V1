@@ -46,24 +46,31 @@ describe('GeminiModelDiscoveryService', () => {
   });
 
   describe('sanitizeModelDiscoveryError', () => {
-    it('handles normal errors without exposing key or full stack', () => {
-      const err = new Error('Secret API Key is ABC');
+    it('redacts sensitive information properly', () => {
+      const err = new Error('Failed to connect to http://localhost:3000?api_key=AIzaSyB123&token=secret123 Authorization: Bearer sk-1234567890123456789012345678901234567890 data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAE \'/home/user/file.txt\' \'C:\\Windows\\temp\'');
       const sanitized = sanitizeModelDiscoveryError(err);
-      expect(sanitized.code).toBe('UNKNOWN');
-      expect(sanitized.status).toBe(500);
-      expect(sanitized.retryable).toBe(true);
-      expect(sanitized.messageSummary).toBe('Secret API Key is ABC');
-      expect((sanitized as any).stack).toBeUndefined();
+      const serialized = JSON.stringify(sanitized);
+
+      expect(serialized).not.toContain('AIza');
+      expect(serialized).not.toContain('secret123');
+      expect(serialized).not.toContain('Bearer sk-');
+      expect(serialized).not.toContain('localhost');
+      expect(serialized).not.toContain('/home/');
+      expect(serialized).not.toContain('C:\\');
+      expect(serialized).toContain('[REDACTED]');
+      expect((sanitized as Record<string, unknown>).stack).toBeUndefined();
     });
 
-    it('preserves status and retryable for 403', () => {
-      const err: any = new Error('Forbidden');
+    it('preserves status and retryable for 403 and maintains general message', () => {
+      const err: any = new Error('Forbidden due to quota limits');
       err.status = 403;
       const sanitized = sanitizeModelDiscoveryError(err);
       expect(sanitized.status).toBe(403);
       expect(sanitized.retryable).toBe(false);
+      expect(sanitized.messageSummary).toContain('Forbidden');
     });
   });
+
 
   describe('Service behaviors', () => {
     it('fails if no API key', async () => {
