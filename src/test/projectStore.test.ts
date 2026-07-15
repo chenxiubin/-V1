@@ -26,7 +26,7 @@ const MOCK_ASSET: ProductAsset = {
   height: 900,
   hasAlpha: true,
   persistedAssetRef: 'ref-calendar-xyz',
-  createdAt: '2026-07-10T03:15:10-07:00',
+  createdAt: '2026-07-10T10:15:10Z',
 };
 
 const MOCK_PROFILE: ProductProfile = {
@@ -52,7 +52,7 @@ const MOCK_PROFILE: ProductProfile = {
   },
   uncertainties: [],
   overallConfidence: 'high' as const,
-  analyzedAt: '2026-07-10T03:15:10-07:00',
+  analyzedAt: '2026-07-10T10:15:10Z',
 };
 
 const MOCK_GUIDED_QUESTIONS: GuidedQuestion[] = [
@@ -75,12 +75,12 @@ const MOCK_GUIDED_QUESTIONS: GuidedQuestion[] = [
 const MOCK_GUIDED_ANSWER: GuidedAnswer = {
   questionId: 'q-style',
   optionId: 'opt-minimal',
-  answeredAt: '2026-07-10T03:15:10-07:00',
+  answeredAt: '2026-07-10T10:15:10Z',
 };
 const MOCK_GUIDED_ANSWER_2: GuidedAnswer = {
   questionId: 'q-purpose',
   optionId: 'opt-biz',
-  answeredAt: '2026-07-10T03:15:10-07:00',
+  answeredAt: '2026-07-10T10:15:10Z',
 };
 
 const MOCK_DIRECTIONS: SceneDirection[] = [
@@ -181,18 +181,18 @@ const MOCK_RECIPE_CONTENT: Omit<SceneRecipe, 'version' | 'recipeId' | 'basedOnVe
     realism: 'real_commercial_interior_photography' as const,
     exclude: [],
   },
-  createdAt: '2026-07-10T03:15:10-07:00',
-  updatedAt: '2026-07-10T03:15:10-07:00',
+  createdAt: '2026-07-10T10:15:10Z',
+  updatedAt: '2026-07-10T10:15:10Z',
 };
 
 const MOCK_SCENE_ASSET = {
-  id: 'scene-asset-111',
+  id: 'scene-asset-111', productAssetId: 'prod-1', recipeId: 'rec-1', recipeVersion: 1, size: 1024, contentHash: 'hash',
   name: 'generated_bg.jpg',
   mimeType: 'image/jpeg' as const,
   width: 1024,
   height: 1024,
   persistedAssetRef: 'ref-scene-xyz',
-  createdAt: '2026-07-10T03:15:10-07:00',
+  createdAt: '2026-07-10T10:15:10Z',
 };
 
 const MOCK_MATCH_REPORT: MatchReport = {
@@ -201,7 +201,7 @@ const MOCK_MATCH_REPORT: MatchReport = {
   productSceneStatus: 'pass' as const,
   issues: [],
   strengths: ['完美光影匹配'],
-  analyzedAt: '2026-07-10T03:15:10-07:00',
+  analyzedAt: '2026-07-10T10:15:10Z',
 };
 
 const MOCK_SERIES: SeriesProject = {
@@ -222,8 +222,8 @@ const MOCK_SERIES: SeriesProject = {
   },
   sceneGroups: [],
   shotIds: ['recipe-test-1'],
-  createdAt: '2026-07-10T03:15:10-07:00',
-  updatedAt: '2026-07-10T03:15:10-07:00',
+  createdAt: '2026-07-10T10:15:10Z',
+  updatedAt: '2026-07-10T10:15:10Z',
 };
 
 // ==========================================

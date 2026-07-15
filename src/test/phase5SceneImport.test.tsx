@@ -22,11 +22,11 @@ describe('Phase 5-A-1: Scene Import', () => {
             lighting: {sourceType: 'window', sourcePosition: 'front', temperature: 'neutral', softness: 'soft', contrast: 'low', shadowDirection: 'soft_diffuse'}, 
             decoration: {density: 'minimal', allowed: [], forbiddenNearProduct: [], foregroundOcclusion: false}, 
             output: {aspectRatio: '1:1', resolutionLabel: '1K', realism: 'real_commercial_interior_photography', exclude: []}, 
-            createdAt: '', 
+            createdAt: new Date().toISOString(), 
             updatedAt: ''
         }], 
         activeVersion: 1, 
-        productAsset: {id: 'p1', name: 'p1', mimeType: 'image/png', width: 100, height: 100, hasAlpha: false, persistedAssetRef: '', createdAt: ''}, 
+        productAsset: {id: 'p1', name: 'p1', mimeType: 'image/png', width: 100, height: 100, hasAlpha: false, persistedAssetRef: '', createdAt: new Date().toISOString()}, 
         productProfile: {schemaVersion: '1.0', productAssetId: 'p1', productType: 'unknown', bracketType: 'unknown', subjectBounds: {x:0,y:0,width:1,height:1}, contactRegion: {xStart:0,xEnd:1,y:0,confidence:'high'}, view: {class:'front',visibleTop:'none',visibleSide:'none',perspectiveStrength:'low'}, materials: [], palette: {dominant:[],edgeBrightness:'mid'}, existingLighting: {direction:'front',temperature:'neutral',softness:'soft',contrast:'low'}, uncertainties: [], overallConfidence: 'high', analyzedAt: '' } 
     } as any));
     
@@ -53,18 +53,18 @@ describe('Phase 5-A-1: Scene Import', () => {
             lighting: {sourceType: 'window', sourcePosition: 'front', temperature: 'neutral', softness: 'soft', contrast: 'low', shadowDirection: 'soft_diffuse'}, 
             decoration: {density: 'minimal', allowed: [], forbiddenNearProduct: [], foregroundOcclusion: false}, 
             output: {aspectRatio: '1:1', resolutionLabel: '1K', realism: 'real_commercial_interior_photography', exclude: []}, 
-            createdAt: '', 
+            createdAt: new Date().toISOString(), 
             updatedAt: ''
         }], 
         activeVersion: 1, 
-        productAsset: {id: 'p1', name: 'p1', mimeType: 'image/png', width: 100, height: 100, hasAlpha: false, persistedAssetRef: '', createdAt: ''}, 
+        productAsset: {id: 'p1', name: 'p1', mimeType: 'image/png', width: 100, height: 100, hasAlpha: false, persistedAssetRef: '', createdAt: new Date().toISOString()}, 
         productProfile: {schemaVersion: '1.0', productAssetId: 'p1', productType: 'unknown', bracketType: 'unknown', subjectBounds: {x:0,y:0,width:1,height:1}, contactRegion: {xStart:0,xEnd:1,y:0,confidence:'high'}, view: {class:'front',visibleTop:'none',visibleSide:'none',perspectiveStrength:'low'}, materials: [], palette: {dominant:[],edgeBrightness:'mid'}, existingLighting: {direction:'front',temperature:'neutral',softness:'soft',contrast:'low'}, uncertainties: [], overallConfidence: 'high', analyzedAt: '' } 
     } as any));
 
     store.goToExternalGeneration();
     
     const mockAsset = {
-        id: 'a1',
+        id: 'a1', productAssetId: 'p1', recipeId: 'r1', recipeVersion: 1, size: 100, contentHash: 'h',
         name: 'test.png',
         mimeType: 'image/png',
         width: 100,
@@ -97,24 +97,24 @@ describe('Phase 5-A-1: Scene Import', () => {
             lighting: {sourceType: 'window', sourcePosition: 'front', temperature: 'neutral', softness: 'soft', contrast: 'low', shadowDirection: 'soft_diffuse'}, 
             decoration: {density: 'minimal', allowed: [], forbiddenNearProduct: [], foregroundOcclusion: false}, 
             output: {aspectRatio: '1:1', resolutionLabel: '1K', realism: 'real_commercial_interior_photography', exclude: []}, 
-            createdAt: '', 
+            createdAt: new Date().toISOString(), 
             updatedAt: ''
         }], 
         activeVersion: 1, 
-        productAsset: {id: 'p1', name: 'p1', mimeType: 'image/png', width: 100, height: 100, hasAlpha: false, persistedAssetRef: '', createdAt: ''}, 
+        productAsset: {id: 'p1', name: 'p1', mimeType: 'image/png', width: 100, height: 100, hasAlpha: false, persistedAssetRef: '', createdAt: new Date().toISOString()}, 
         productProfile: {schemaVersion: '1.0', productAssetId: 'p1', productType: 'unknown', bracketType: 'unknown', subjectBounds: {x:0,y:0,width:1,height:1}, contactRegion: {xStart:0,xEnd:1,y:0,confidence:'high'}, view: {class:'front',visibleTop:'none',visibleSide:'none',perspectiveStrength:'low'}, materials: [], palette: {dominant:[],edgeBrightness:'mid'}, existingLighting: {direction:'front',temperature:'neutral',softness:'soft',contrast:'low'}, uncertainties: [], overallConfidence: 'high', analyzedAt: '' },
         sceneAsset: { 
-            id: 'a1', 
+            id: 'a1', productAssetId: 'p1', recipeId: 'r1', recipeVersion: 1, size: 100, contentHash: 'h', 
             name: 'test.png',
             mimeType: 'image/png',
             width: 100,
             height: 100,
-            persistedAssetRef: 'data:image/png;base64,mock',
+            productAssetId: 'dummy-product-id', recipeId: 'dummy-recipe-id', recipeVersion: 1, size: 1024, contentHash: 'dummy-hash', persistedAssetRef: 'data:image/png;base64,mock',
             createdAt: new Date().toISOString()
         } 
     } as any));
     
-    store.importProduct({ id: 'p2', name: 'p2', mimeType: 'image/png', width: 100, height: 100, hasAlpha: false, persistedAssetRef: '', createdAt: '' });
+    store.importProduct({ id: 'p2', name: 'p2', mimeType: 'image/png', width: 100, height: 100, hasAlpha: false, persistedAssetRef: '', createdAt: new Date().toISOString() });
     expect(store.getState().sceneAsset).toBeNull();
   });
 });

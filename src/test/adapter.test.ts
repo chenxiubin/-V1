@@ -258,12 +258,14 @@ describe('SceneIntelligenceAdapter Integration & Verification Tests (Phase 1-C)'
           mimeType: 'image/jpeg',
           width: 1024,
           height: 1024,
+productAssetId: 'prod-1', recipeId: 'rec-1', recipeVersion: 1, size: 1024, contentHash: 'hash',
           persistedAssetRef: 'ref-scene-xyz',
           createdAt: new Date().toISOString(),
         },
         sceneRecipe: TEST_RECIPE,
         productAsset: TEST_PRODUCT_ASSET,
         overlayPreviewRef: 'test-overlay-ref',
+      promptDocument: { fullPrompt: 'test', sections: {}, objectJson: {} } as any,
       });
 
       expect(globalThis.fetch).not.toHaveBeenCalled();
@@ -406,12 +408,14 @@ describe('SceneIntelligenceAdapter Integration & Verification Tests (Phase 1-C)'
           mimeType: 'image/jpeg',
           width: 1024,
           height: 1024,
+productAssetId: 'prod-1', recipeId: 'rec-1', recipeVersion: 1, size: 1024, contentHash: 'hash',
           persistedAssetRef: 'ref-scene-xyz',
           createdAt: new Date().toISOString(),
         },
         sceneRecipe: TEST_RECIPE,
         productAsset: TEST_PRODUCT_ASSET,
         overlayPreviewRef: 'test-overlay-ref',
+      promptDocument: { fullPrompt: 'test', sections: {}, objectJson: {} } as any,
       });
 
       expect(globalThis.fetch).toHaveBeenCalledWith('/api/ai/analyze-match', expect.any(Object));
@@ -432,12 +436,14 @@ describe('SceneIntelligenceAdapter Integration & Verification Tests (Phase 1-C)'
           mimeType: 'image/jpeg',
           width: 1024,
           height: 1024,
+productAssetId: 'prod-1', recipeId: 'rec-1', recipeVersion: 1, size: 1024, contentHash: 'hash',
           persistedAssetRef: 'ref-scene-xyz',
           createdAt: new Date().toISOString(),
         },
         sceneRecipe: TEST_RECIPE,
         productAsset: TEST_PRODUCT_ASSET,
         overlayPreviewRef: 'test-overlay-ref',
+      promptDocument: { fullPrompt: 'test', sections: {}, objectJson: {} } as any,
       })).rejects.toThrow('服务端匹配分析数据校验失败');
     });
 

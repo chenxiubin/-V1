@@ -124,9 +124,8 @@ describe('ProjectStore Template System (Phase 7-B)', () => {
         mimeType: 'image/png' as const,
         width: 1024,
         height: 1024,
-        persistedAssetRef: 'ref',
-        createdAt: new Date().toISOString()
-      },
+        productAssetId: 'dummy-product-id', recipeId: 'dummy-recipe-id', recipeVersion: 1, size: 1024, contentHash: 'dummy-hash', persistedAssetRef: 'ref', createdAt: new Date().toISOString()
+       },
       matchReport: {
         id: 'm1',
         recipeVersion: 1,

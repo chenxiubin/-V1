@@ -73,6 +73,11 @@ describe('Phase 7-D-1: CanvasPreviewRenderer Component Tests', () => {
 
   const mockSceneAsset: NonNullable<ProjectState['sceneAsset']> = {
     id: 'scene-1',
+    productAssetId: 'prod-1',
+    recipeId: 'rec-1',
+    recipeVersion: 1,
+    size: 1024,
+    contentHash: 'hash',
     name: 'test_scene.png',
     mimeType: 'image/png',
     width: 800,

@@ -8,10 +8,11 @@ import {
   MatchReport,
   RecipePatchOperation,
   SeriesProject,
-  CreateRecipeInput
+  CreateRecipeInput,
+  AnalyzeMatchInput
 } from '../../types/schemas';
 
-export type { CreateRecipeInput };
+export type { CreateRecipeInput, AnalyzeMatchInput };
 
 // ==========================================
 // Input and Output Contracts for AI Methods
@@ -30,22 +31,7 @@ export interface PlanDirectionsInput {
   guidedAnswers: GuidedAnswer[];
 }
 
-export interface AnalyzeMatchInput {
-  productProfile: ProductProfile;
-  productAsset: ProductAsset;
-  sceneAsset: {
-    id: string;
-    name: string;
-    mimeType: 'image/png' | 'image/jpeg' | 'image/webp';
-    width: number;
-    height: number;
-    persistedAssetRef: string;
-    createdAt: string;
-  };
-  sceneRecipe: SceneRecipe;
-  overlayPreviewRef: string;
-  seriesProject?: SeriesProject | null;
-}
+
 
 export interface ProposePatchInput {
   sceneRecipe: SceneRecipe;
