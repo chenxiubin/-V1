@@ -23,6 +23,15 @@ app.set('scenePlannerService', new GeminiScenePlannerService());
 // Mount API routes
 app.use('/api/ai', analyzeProductRouter);
 app.use('/api/ai', scenePlannerRouter);
+// Fallback for unmatched API routes
+app.use('/api', (req, res) => {
+  res.status(404).json({
+    code: 'API_ROUTE_NOT_FOUND',
+    message: `接口不存在：${req.method} ${req.path}`,
+    retryable: false
+  });
+});
+
 
 // Global Error Handler
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

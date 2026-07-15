@@ -88,8 +88,20 @@ router.post('/analyze-product', (req: Request, res: Response, next: NextFunction
       });
     }
 
+    const reqId = Date.now().toString(36) + Math.random().toString(36).substring(2);
+    const start = Date.now();
     try {
-      const file = req.file;
+
+    console.log('[ANALYZE_PRODUCT_REQUEST]', {
+      requestId: reqId,
+      method: req.method,
+      contentType: req.headers['content-type'],
+      hasProductImage: !!req.file,
+      productAssetIdPresent: !!req.body.productAssetId,
+      imageMimeType: req.file ? req.file.mimetype : null,
+      imageSizeBytes: req.file ? req.file.size : null
+    });
+    const file = req.file;
       if (!file) {
         return res.status(400).json({
           code: 'MISSING_FILE',
@@ -155,6 +167,13 @@ router.post('/analyze-product', (req: Request, res: Response, next: NextFunction
 
       // 4. Run analysis
       const profile = await service.analyze(file.buffer, detected.mime, productAssetId);
+      
+      console.log('[ANALYZE_PRODUCT_RESPONSE]', {
+        requestId: reqId,
+        status: 200,
+        durationMs: Date.now() - start,
+        errorCode: null
+      });
       return res.status(200).json(profile);
 
     } catch (error: any) {
@@ -194,6 +213,13 @@ router.post('/analyze-product', (req: Request, res: Response, next: NextFunction
         retryable = true;
       }
 
+      
+      console.log('[ANALYZE_PRODUCT_RESPONSE]', {
+        requestId: reqId,
+        status,
+        durationMs: Date.now() - start,
+        errorCode: code
+      });
       return res.status(status).json({
         code,
         message,

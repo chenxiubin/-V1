@@ -188,6 +188,22 @@ export default function App() {
   const [selectedProductType, setSelectedProductType] = useState('ring_top_tent');
   const [errorMessage, setErrorMessage] = useState<{ message: string; retryable: boolean } | null>(null);
   const [localPreviewUrl, setLocalPreviewUrl] = useState<string | null>(null);
+  const [apiHealth, setApiHealth] = useState<'checking' | 'ready' | 'error'>('checking');
+
+  useEffect(() => {
+    fetch('/api/health')
+      .then(res => res.json())
+      .then(data => {
+        if (data.ok) {
+          setApiHealth('ready');
+        } else {
+          setApiHealth('error');
+        }
+      })
+      .catch(() => {
+        setApiHealth('error');
+      });
+  }, []);
   const [savedProjects, setSavedProjects] = useState<any[]>([]);
   const [dragActive, setDragActive] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');

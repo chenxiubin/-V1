@@ -24,6 +24,16 @@ async function startServer() {
 
   app.listen(Number(PORT), '0.0.0.0', () => {
     console.log(`Server running on http://0.0.0.0:${PORT}`);
+    const mode = process.env.NODE_ENV || 'development';
+    const hasGeminiKey = !!process.env.GEMINI_API_KEY;
+    const frontendMode = mode === 'production' ? 'dist-static' : 'vite-middleware';
+    console.log('[SERVER_START]');
+    console.log('mode:', mode);
+    console.log('port:', PORT);
+    console.log('apiHealth: ready');
+    console.log('frontend:', frontendMode);
+    console.log('geminiKeyConfigured:', hasGeminiKey);
+
   });
 }
 
