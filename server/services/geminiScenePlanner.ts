@@ -265,8 +265,8 @@ export class GeminiScenePlannerService {
       attempts++;
       try {
         const parts = [
-          { inlineData: { mimeType: 'image/png', data: input.productBuffer.toString('base64') } },
-          { inlineData: { mimeType: 'image/png', data: input.sceneBuffer.toString('base64') } },
+          { inlineData: { mimeType: input.productAsset.mimeType || 'image/png', data: input.productBuffer.toString('base64') } },
+          { inlineData: { mimeType: input.sceneAsset.mimeType || 'image/png', data: input.sceneBuffer.toString('base64') } },
           { inlineData: { mimeType: 'image/png', data: input.overlayBuffer.toString('base64') } },
           { text: feedbackPrompt ? `[Previous Attempt Failed with error: ${feedbackPrompt}]. Correct JSON.` : `分析产品与场景匹配。${JSON.stringify({profile: input.productProfile, recipe: input.sceneRecipe})}` }
         ];
@@ -289,6 +289,18 @@ export class GeminiScenePlannerService {
   }
 
   private validateMatchReport(report: any, input: AnalyzeMatchInput): void {
+      const rawText = JSON.stringify(report);
+      const forbidden = [
+          'API Key', 'Bearer ', 'base64', 'data:image', 'blob:', 
+          'localhost', '127.0.0.1', 'C:\\', 'D:\\', 
+          '/mnt/', '/home/', '/tmp/', '/var/'
+      ];
+      for (const token of forbidden) {
+          if (rawText.toLowerCase().includes(token.toLowerCase())) {
+              throw new Error(`检测到敏感或非法内容: ${token}`);
+          }
+      }
+
       if (report.recipeVersion !== input.sceneRecipe.version) {
           throw new Error('recipeVersion 与输入不一致');
       }

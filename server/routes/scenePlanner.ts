@@ -350,8 +350,14 @@ router.post('/analyze-match', upload.fields([
     if (input.sceneAsset.recipeId !== input.sceneRecipe.recipeId || input.sceneAsset.recipeVersion !== input.sceneRecipe.version) {
        return res.status(400).json({ code: 'RECIPE_VERSION_MISMATCH', message: '场景与Recipe版本不匹配', retryable: false });
     }
-    if (input.sceneRecipe.productAssetId !== input.productAsset.id || input.productProfile.productAssetId !== input.productAsset.id) {
+    if (input.sceneRecipe.productAssetId !== input.productAsset.id || input.productProfile.productAssetId !== input.productAsset.id || input.sceneAsset.productAssetId !== input.productAsset.id) {
         return res.status(400).json({ code: 'PRODUCT_MISMATCH', message: '产品不匹配', retryable: false });
+    }
+    if (input.promptDocument.recipeId !== input.sceneRecipe.recipeId || input.promptDocument.recipeVersion !== input.sceneRecipe.version) {
+       return res.status(400).json({ code: 'PROMPT_VERSION_MISMATCH', message: 'Prompt与Recipe版本不匹配', retryable: false });
+    }
+    if (!input.overlayPreviewRef || input.overlayPreviewRef.startsWith('data:') || input.overlayPreviewRef.startsWith('blob:')) {
+       return res.status(400).json({ code: 'INVALID_OVERLAY', message: '非法叠加预览', retryable: false });
     }
 
     const service = req.app.get('scenePlannerService') as GeminiScenePlannerService;

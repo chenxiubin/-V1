@@ -381,6 +381,7 @@ export class RealAdapter implements SceneIntelligenceAdapter {
       sceneRecipe: input.sceneRecipe,
       productAsset: input.productAsset,
       sceneAsset: input.sceneAsset,
+      promptDocument: input.promptDocument,
       overlayPreviewRef: input.overlayPreviewRef
     }));
 

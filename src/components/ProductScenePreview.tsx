@@ -1,6 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Layers, Eye, EyeOff, Maximize2, Minimize2, Upload, ArrowLeft } from 'lucide-react';
 import { ProjectState } from '../types/schemas';
+import { createProductSceneOverlay } from '../services/productSceneOverlay';
+import { getAsset, saveAsset } from '../lib/db';
 
 interface Props {
   productAsset: NonNullable<ProjectState['productAsset']>;
@@ -8,7 +10,7 @@ interface Props {
   recipe: NonNullable<ProjectState['sceneRecipe']>;
   onReplaceScene: () => void;
   onBackToGeneration: () => void;
-  onOverlayGenerated?: (dataUrl: string) => void;
+  onOverlayGenerated?: (overlayRef: string) => void;
 }
 
 export const ProductScenePreview: React.FC<Props> = ({
@@ -21,11 +23,12 @@ export const ProductScenePreview: React.FC<Props> = ({
 }) => {
   const [productVisible, setProductVisible] = useState(true);
   const [viewMode, setViewMode] = useState<'fit' | 'original'>('fit');
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [localSceneUrl, setLocalSceneUrl] = useState<string>('');
+  const [localProductUrl, setLocalProductUrl] = useState<string>('');
 
   // Recipe-driven composition
   const { composition } = recipe;
-  
+
   // Calculate preview position based on composition constraints
   const getPositionStyles = () => {
     switch (composition.productPosition) {
@@ -39,79 +42,52 @@ export const ProductScenePreview: React.FC<Props> = ({
   };
 
   useEffect(() => {
-    // Generate actual overlay canvas for analysis
-    if (!onOverlayGenerated) return;
+    let active = true;
+    const urlsToRevoke: string[] = [];
 
-    const generateOverlay = async () => {
-      const sceneImg = new Image();
-      const productImg = new Image();
-      
-      const loadImg = (img: HTMLImageElement, src: string) => 
-        new Promise((resolve, reject) => {
-          img.crossOrigin = 'anonymous';
-          img.onload = resolve;
-          img.onerror = reject;
-          img.src = src;
-        });
-
+    const loadImages = async () => {
       try {
-        await Promise.all([
-          loadImg(sceneImg, sceneAsset.persistedAssetRef),
-          loadImg(productImg, productAsset.persistedAssetRef)
+        const [sceneBlob, productBlob] = await Promise.all([
+          getAsset(sceneAsset.persistedAssetRef),
+          getAsset(productAsset.persistedAssetRef)
         ]);
 
-        const canvas = canvasRef.current;
-        if (!canvas) return;
-        
-        canvas.width = sceneImg.width;
-        canvas.height = sceneImg.height;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
+        if (!active || !sceneBlob || !productBlob) return;
 
-        // Draw scene
-        ctx.drawImage(sceneImg, 0, 0, canvas.width, canvas.height);
+        const sUrl = URL.createObjectURL(sceneBlob);
+        const pUrl = URL.createObjectURL(productBlob);
+        urlsToRevoke.push(sUrl, pUrl);
 
-        // Draw product based on composition
-        const productWidth = canvas.width * (composition.productWidthPercent / 100);
-        const productHeight = productWidth * (productImg.height / productImg.width);
+        setLocalSceneUrl(sUrl);
+        setLocalProductUrl(pUrl);
 
-        let dx = 0, dy = 0;
-        switch (composition.productPosition) {
-          case 'center_left':
-            dx = canvas.width * 0.1;
-            dy = (canvas.height - productHeight) / 2;
-            break;
-          case 'center_right':
-            dx = canvas.width * 0.9 - productWidth;
-            dy = (canvas.height - productHeight) / 2;
-            break;
-          case 'lower_left':
-            dx = canvas.width * 0.1;
-            dy = canvas.height * 0.9 - productHeight;
-            break;
-          case 'lower_right':
-            dx = canvas.width * 0.9 - productWidth;
-            dy = canvas.height * 0.9 - productHeight;
-            break;
-          case 'center':
-          default:
-            dx = (canvas.width - productWidth) / 2;
-            dy = (canvas.height - productHeight) / 2;
-            break;
+        if (onOverlayGenerated) {
+          const { blob: overlayBlob } = await createProductSceneOverlay({
+            productBlob,
+            sceneBlob,
+            productAsset,
+            sceneAsset,
+            composition,
+          });
+
+          const overlayId = `overlay-${crypto.randomUUID()}`;
+          await saveAsset(overlayId, overlayBlob);
+          if (active) {
+            onOverlayGenerated(overlayId);
+          }
         }
-
-        ctx.drawImage(productImg, dx, dy, productWidth, productHeight);
-        
-        const dataUrl = canvas.toDataURL('image/png', 0.9);
-        onOverlayGenerated(dataUrl);
-
-      } catch (e) {
-        console.error('Failed to generate overlay preview', e);
+      } catch (err) {
+        console.error('Failed to generate overlay:', err);
       }
     };
 
-    generateOverlay();
-  }, [productAsset, sceneAsset, composition.productPosition, composition.productWidthPercent, onOverlayGenerated]);
+    loadImages();
+
+    return () => {
+      active = false;
+      urlsToRevoke.forEach(url => URL.revokeObjectURL(url));
+    };
+  }, [productAsset, sceneAsset, composition, onOverlayGenerated]);
 
   return (
     <div className="flex flex-col h-full gap-4">
@@ -130,35 +106,34 @@ export const ProductScenePreview: React.FC<Props> = ({
       </div>
 
       <div className="flex-grow relative bg-slate-100 rounded-2xl overflow-hidden border border-slate-200 flex items-center justify-center">
-        {/* Hidden canvas for generating the exact overlay for backend analysis */}
-        <canvas ref={canvasRef} className="hidden" />
-
         <div className={`relative ${viewMode === 'fit' ? 'w-full h-full flex items-center justify-center' : ''}`}>
-          <div className="relative" style={{ width: viewMode === 'fit' ? '100%' : sceneAsset.width, height: viewMode === 'fit' ? '100%' : sceneAsset.height }}>
-            {/* Background Scene */}
-            <img 
-              src={sceneAsset.persistedAssetRef} 
-              alt="Scene" 
-              className={`w-full h-full ${viewMode === 'fit' ? 'object-contain' : 'object-cover'}`}
-            />
-            {/* Product Overlay */}
-            {productVisible && (
-              <div 
-                className="absolute z-10 transition-all duration-300 pointer-events-none"
-                style={{
-                    ...getPositionStyles(),
-                    width: `${composition.productWidthPercent}%`,
-                }}
-              >
-                <img 
-                  src={productAsset.persistedAssetRef} 
-                  alt="Product" 
-                  className="w-full h-auto object-contain"
-                  style={{ aspectRatio: `${productAsset.width}/${productAsset.height}` }}
-                />
-              </div>
-            )}
-          </div>
+          {localSceneUrl && (
+            <div className="relative" style={{ width: viewMode === 'fit' ? '100%' : sceneAsset.width, height: viewMode === 'fit' ? '100%' : sceneAsset.height }}>
+              {/* Background Scene */}
+              <img 
+                src={localSceneUrl} 
+                alt="Scene" 
+                className={`w-full h-full ${viewMode === 'fit' ? 'object-contain' : 'object-cover'}`}
+              />
+              {/* Product Overlay */}
+              {productVisible && localProductUrl && (
+                <div 
+                  className="absolute z-10 transition-all duration-300 pointer-events-none"
+                  style={{
+                      ...getPositionStyles(),
+                      width: `${composition.productWidthPercent}%`,
+                  }}
+                >
+                  <img 
+                    src={localProductUrl} 
+                    alt="Product" 
+                    className="w-full h-auto object-contain"
+                    style={{ aspectRatio: `${productAsset.width}/${productAsset.height}` }}
+                  />
+                </div>
+              )}
+            </div>
+          )}
         </div>
         
         {/* Fixed Label */}
@@ -169,3 +144,4 @@ export const ProductScenePreview: React.FC<Props> = ({
     </div>
   );
 };
+

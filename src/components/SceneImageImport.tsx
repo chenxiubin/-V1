@@ -1,8 +1,17 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Upload, ImageIcon, AlertTriangle } from 'lucide-react';
+import { saveAsset } from '../lib/db';
 
 interface Props {
-  onImport: (asset: { id: string, name: string, mimeType: 'image/png' | 'image/jpeg' | 'image/webp', width: number, height: number, persistedAssetRef: string, createdAt: string }) => void;
+  onImport: (assetData: { 
+    blob: Blob,
+    name: string, 
+    mimeType: 'image/png' | 'image/jpeg' | 'image/webp', 
+    width: number, 
+    height: number, 
+    size: number,
+    contentHash: string,
+  }) => void;
   onError: (msg: string) => void;
 }
 
@@ -10,6 +19,12 @@ export const SceneImageImport: React.FC<Props> = ({ onImport, onError }) => {
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [lastFileHash, setLastFileHash] = useState<string | null>(null);
+
+  const calculateHash = async (buffer: ArrayBuffer): Promise<string> => {
+    const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  };
 
   const processFile = async (file: File) => {
     if (!file) {
@@ -25,31 +40,42 @@ export const SceneImageImport: React.FC<Props> = ({ onImport, onError }) => {
       return;
     }
 
-    // Check duplicate using simple hash (name + size + lastModified)
-    const hash = `${file.name}-${file.size}-${file.lastModified}`;
-    if (hash === lastFileHash) {
-      onError('检测到重复上传相同文件');
-      return;
-    }
-    
-    const reader = new FileReader();
-    reader.onload = (e) => {
+    try {
+      const buffer = await file.arrayBuffer();
+      const hash = await calculateHash(buffer);
+
+      if (hash === lastFileHash) {
+        onError('检测到重复上传相同文件');
+        return;
+      }
+      
+      const url = URL.createObjectURL(file);
       const img = new Image();
-      img.onload = () => {
+      
+      img.onload = async () => {
+        URL.revokeObjectURL(url);
         setLastFileHash(hash);
+        
         onImport({
-          id: `asset-${Date.now()}`,
+          blob: file,
           name: file.name,
-          mimeType: file.type as any,
+          mimeType: file.type as 'image/png' | 'image/jpeg' | 'image/webp',
           width: img.width,
           height: img.height,
-          persistedAssetRef: e.target?.result as string,
-          createdAt: new Date().toISOString(),
+          size: file.size,
+          contentHash: hash,
         });
       };
-      img.src = e.target?.result as string;
-    };
-    reader.readAsDataURL(file);
+      
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        onError('无法读取图片内容，文件可能已损坏');
+      };
+      
+      img.src = url;
+    } catch (err) {
+      onError('处理文件时发生错误');
+    }
   };
 
   const handleDrop = (e: React.DragEvent) => {

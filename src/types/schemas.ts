@@ -568,6 +568,23 @@ export const RenderSnapshotSchema = z.object({
 });
 export type RenderSnapshot = z.infer<typeof RenderSnapshotSchema>;
 
+
+export const SceneAssetSchema = z.object({
+  id: z.string(),
+  productAssetId: z.string(),
+  recipeId: z.string(),
+  recipeVersion: z.number(),
+  name: z.string(),
+  mimeType: z.enum(['image/png', 'image/jpeg', 'image/webp']),
+  width: z.number().int().positive(),
+  height: z.number().int().positive(),
+  size: z.number().int().positive(),
+  contentHash: z.string(),
+  persistedAssetRef: z.string(),
+  createdAt: z.string().datetime(),
+});
+export type SceneAsset = z.infer<typeof SceneAssetSchema>;
+
 export type ProjectState = z.infer<typeof ProjectStateSchema>;
 export const ProjectStateSchema = z.object({
   schemaVersion: z.literal('1.0'),
@@ -592,17 +609,7 @@ export const ProjectStateSchema = z.object({
   recipeRequestStatus: z.enum(['idle', 'loading', 'success', 'error']).optional().default('idle'),
   recipeError: z.string().nullable().optional(),
   activeVersion: z.number().nullable(),
-  sceneAsset: z.object({
-    id: z.string(),
-    name: z.string(),
-    mimeType: z.enum(['image/png', 'image/jpeg', 'image/webp']),
-    width: z.number(),
-    height: z.number(),
-    persistedAssetRef: z.string(),
-    createdAt: z.string(),
-    recipeId: z.string().optional(),
-    recipeVersion: z.number().optional(),
-  }).nullable(),
+  sceneAsset: SceneAssetSchema.nullable().optional(),
   matchReport: MatchReportSchema.nullable(),
   matchRequestStatus: z.enum(['idle', 'loading', 'success', 'error']).optional().default('idle'),
   matchError: z.string().nullable().optional(),
@@ -627,17 +634,8 @@ export const AnalyzeMatchInputSchema = z.object({
   productProfile: ProductProfileSchema,
   sceneRecipe: SceneRecipeSchema,
   productAsset: ProductAssetSchema,
-  sceneAsset: z.object({
-    id: z.string(),
-    name: z.string(),
-    mimeType: z.enum(['image/png', 'image/jpeg', 'image/webp']),
-    width: z.number(),
-    height: z.number(),
-    persistedAssetRef: z.string(),
-    createdAt: z.string(),
-    recipeId: z.string().optional(),
-    recipeVersion: z.number().optional(),
-  }),
+  sceneAsset: SceneAssetSchema,
+  promptDocument: PromptDocumentSchema,
   overlayPreviewRef: z.string(),
 });
 export type AnalyzeMatchInput = z.infer<typeof AnalyzeMatchInputSchema>;

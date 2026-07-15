@@ -79,20 +79,17 @@ describe('Phase 6-B: Match Report Tests', () => {
     name: 's1.png', 
     mimeType: 'image/png' as const, 
     width: 100, 
-    height: 100, 
+    height: 100,
+    size: 1024,
+    contentHash: 'hash', 
     persistedAssetRef: 'ref-s1', 
-    createdAt: 'now' 
+    recipeId: 'rec1',
+    recipeVersion: 1,
+    productAssetId: 'p1',
+    createdAt: new Date().toISOString() 
   };
   
-  const MOCK_SCENE_ASSET_INPUT = { 
-    id: 's1', 
-    name: 's1.png', 
-    mimeType: 'image/png' as const, 
-    width: 100, 
-    height: 100, 
-    persistedAssetRef: 'ref-s1', 
-    createdAt: 'now' 
-  };
+  const MOCK_SCENE_ASSET_INPUT = { ...MOCK_SCENE_ASSET };
 
   it('1. 缺少资源时不能调用 analyzeMatch', async () => {
     // According to the test failure, it requires SceneRecipe, activeVersion,
@@ -140,7 +137,7 @@ describe('Phase 6-B: Match Report Tests', () => {
       sceneAsset: MOCK_SCENE_ASSET
     }));
 
-    const input: AnalyzeMatchInput = {
+    const input: AnalyzeMatchInput = { promptDocument: { fullPrompt: 'test', sections: {}, objectJson: {} } as any,
       productProfile: MOCK_PROFILE,
       sceneRecipe: MOCK_RECIPE,
       productAsset: MOCK_ASSET,
@@ -176,7 +173,7 @@ describe('Phase 6-B: Match Report Tests', () => {
     }));
     
     // Replace scene
-    store.importScenePreview({ id: 's2', name: 's2', mimeType: 'image/png', width: 100, height: 100, persistedAssetRef: 'ref-s2', createdAt: 'now' });
+    store.importScenePreview({ id: 's2', name: 's2', mimeType: 'image/png', width: 100, height: 100, size: 1024, contentHash: 'hash2', persistedAssetRef: 'ref-s2', recipeId: 'rec1', recipeVersion: 1, productAssetId: 'p1', createdAt: new Date().toISOString() });
     expect(store.getState().matchReport).toBeNull();
 
     // 2. Set up valid state again

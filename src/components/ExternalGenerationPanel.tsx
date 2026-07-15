@@ -1,16 +1,21 @@
 import React, { useState } from 'react';
 import { Copy, Upload, ImageIcon, X } from 'lucide-react';
-import { PromptDocument } from '../types/schemas';
+import { PromptDocument, SceneAsset } from '../types/schemas';
 import { SceneImageImport } from './SceneImageImport';
+import { saveAsset } from '../lib/db';
 
 interface Props {
   prompt: PromptDocument;
-  onImport: (asset: { id: string, name: string, mimeType: 'image/png' | 'image/jpeg' | 'image/webp', width: number, height: number, persistedAssetRef: string, createdAt: string }) => void;
+  recipeId: string;
+  recipeVersion: number;
+  productAssetId: string;
+  onImport: (asset: SceneAsset) => void;
   onError: (msg: string) => void;
 }
 
-export const ExternalGenerationPanel: React.FC<Props> = ({ prompt, onImport, onError }) => {
+export const ExternalGenerationPanel: React.FC<Props> = ({ prompt, recipeId, recipeVersion, productAssetId, onImport, onError }) => {
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
 
   const handleCopy = async () => {
     try {
@@ -19,6 +24,44 @@ export const ExternalGenerationPanel: React.FC<Props> = ({ prompt, onImport, onE
       setTimeout(() => setCopyFeedback(null), 2000);
     } catch {
       onError('复制失败，请手动选择文本复制');
+    }
+  };
+
+  const handleImport = async (assetData: { 
+    blob: Blob,
+    name: string, 
+    mimeType: 'image/png' | 'image/jpeg' | 'image/webp', 
+    width: number, 
+    height: number, 
+    size: number,
+    contentHash: string,
+  }) => {
+    if (isImporting) return;
+    setIsImporting(true);
+    try {
+      const assetId = `scene-${crypto.randomUUID()}`;
+      await saveAsset(assetId, assetData.blob);
+
+      const sceneAsset: SceneAsset = {
+        id: assetId,
+        productAssetId,
+        recipeId,
+        recipeVersion,
+        name: assetData.name,
+        mimeType: assetData.mimeType,
+        width: assetData.width,
+        height: assetData.height,
+        size: assetData.size,
+        contentHash: assetData.contentHash,
+        persistedAssetRef: assetId,
+        createdAt: new Date().toISOString(),
+      };
+
+      onImport(sceneAsset);
+    } catch (err) {
+      onError('保存场景资产失败');
+    } finally {
+      setIsImporting(false);
     }
   };
 
@@ -48,7 +91,7 @@ export const ExternalGenerationPanel: React.FC<Props> = ({ prompt, onImport, onE
 
       <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
         <h2 className="text-xl font-bold mb-4">导入场景图片</h2>
-        <SceneImageImport onImport={onImport} onError={onError} />
+        <SceneImageImport onImport={handleImport} onError={onError} />
       </div>
     </div>
   );

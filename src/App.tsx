@@ -501,32 +501,20 @@ export default function App() {
   };
 
   const handleAnalyzeMatch = async () => {
-    if (!state.productAsset || !state.productProfile || !state.sceneAsset || !state.sceneRecipe) return;
+    if (!state.productAsset || !state.productProfile || !state.sceneAsset || !state.sceneRecipe || !state.promptDocument) return;
 
-    let persistedOverlay = 'OVR_REF';
-    if (overlayPreviewRef && overlayPreviewRef.startsWith('data:')) {
-      const res = await fetch(overlayPreviewRef);
-      const blob = await res.blob();
-      const file = new File([blob], `overlay-${Date.now()}.png`, { type: 'image/png' });
-      persistedOverlay = await saveAsset(file);
+    if (!overlayPreviewRef || overlayPreviewRef.startsWith('data:')) {
+       setErrorMessage({ message: '产品叠加预览尚未生成或非法，请等待生成完成。', retryable: false });
+       return;
     }
 
     const input: AnalyzeMatchInput = {
       productProfile: state.productProfile,
       sceneRecipe: state.sceneRecipe,
       productAsset: state.productAsset,
-      sceneAsset: {
-        id: state.sceneAsset.id,
-        name: state.sceneAsset.name,
-        mimeType: state.sceneAsset.mimeType,
-        width: state.sceneAsset.width,
-        height: state.sceneAsset.height,
-        persistedAssetRef: state.sceneAsset.persistedAssetRef,
-        createdAt: state.sceneAsset.createdAt,
-        recipeId: state.sceneRecipe.recipeId,
-        recipeVersion: state.sceneRecipe.version,
-      },
-      overlayPreviewRef: persistedOverlay,
+      sceneAsset: state.sceneAsset,
+      promptDocument: state.promptDocument,
+      overlayPreviewRef,
     };
     await projectStore.analyzeMatch(input);
   };
@@ -1603,10 +1591,14 @@ export default function App() {
                 selectedDirection={
                   state.sceneDirections?.find(d => d.id === state.selectedDirectionId)
                 }
+                onGoToExternalGeneration={handleGoToExternalGeneration}
               />
             ) : state.status === 'AWAITING_EXTERNAL_GENERATION' ? (
               <ExternalGenerationPanel
                 prompt={state.promptDocument!}
+                recipeId={state.sceneRecipe!.recipeId}
+                recipeVersion={state.sceneRecipe!.version}
+                productAssetId={state.productAsset!.id}
                 onImport={handleImportSceneAsset}
                 onError={(msg) => setErrorMessage({ message: msg, retryable: false })}
               />
