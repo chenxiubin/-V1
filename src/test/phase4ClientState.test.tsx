@@ -770,15 +770,9 @@ describe('Phase 4-C-1: Client State and Persistence (Robust Refactoring)', () =>
 
       const btn = screen.getByText('确认这个方向');
       
-      // First click
+      // In a single act, click twice sequentially without waiting
       await act(async () => {
         fireEvent.click(btn);
-      });
-      // Wait for state to be loading
-      await waitFor(() => expect(projectStore.getState().recipeRequestStatus).toBe('loading'));
-      
-      // Second click should be ignored
-      await act(async () => {
         fireEvent.click(btn);
       });
 

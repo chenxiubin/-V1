@@ -26,7 +26,7 @@ import { RealAdapter } from './services/ai/realAdapter';
 import { compilePromptDocument } from './services/ai/promptCompiler';
 import { GuidedQuestionsPanel } from './components/GuidedQuestionsPanel';
 import { SceneDirectionPanel } from './components/SceneDirectionPanel';
-import { RecipeReadyPanel } from './components/RecipeReadyPanel';
+import { RecipeReadyView } from './components/RecipeReadyView';
 import { ExternalGenerationPanel } from './components/ExternalGenerationPanel';
 import { ProductScenePreview } from './components/ProductScenePreview';
 import { MatchReportPanel } from './components/MatchReportPanel';
@@ -1587,13 +1587,12 @@ export default function App() {
                 />
               </motion.div>
             ) : state.status === 'RECIPE_READY' ? (
-              <RecipeReadyPanel
+              <RecipeReadyView
                 recipe={state.sceneRecipe!}
-                prompt={state.promptDocument!}
-                directionName={
-                  state.sceneDirections?.find(d => d.id === state.selectedDirectionId)?.name || '未知方向'
+                promptDocument={state.promptDocument!}
+                selectedDirection={
+                  state.sceneDirections?.find(d => d.id === state.selectedDirectionId)
                 }
-                onGoToExternalGeneration={handleGoToExternalGeneration}
               />
             ) : state.status === 'AWAITING_EXTERNAL_GENERATION' ? (
               <ExternalGenerationPanel
