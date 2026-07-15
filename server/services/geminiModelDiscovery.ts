@@ -9,7 +9,8 @@ export interface DiscoveredModel {
   inputTokenLimit: number;
   outputTokenLimit: number;
   supportedGenerationMethods: string[];
-  releaseChannel: 'stable' | 'preview' | 'experimental';
+  releaseChannel: 'stable' | 'preview' | 'experimental' | 'unknown';
+  compatibility: 'compatible' | 'unknown' | 'incompatible';
   capabilities: {
     imageInput: boolean;
     structuredOutput: boolean;
@@ -43,11 +44,21 @@ export function getSupportedModelActions(model: any): string[] {
 }
 
 export function sanitizeModelDiscoveryError(error: any) {
+  let msg = error?.message ? String(error.message).substring(0, 200) : 'Unknown error';
+  
+  // Redact secrets
+  msg = msg.replace(/AIza[a-zA-Z0-9_-]{35}/g, '[REDACTED]')
+           .replace(/sk-[a-zA-Z0-9]{40,}/g, '[REDACTED]')
+           .replace(/(Bearer|api_key=|key=|token=)[^&\s'"]+/gi, '$1[REDACTED]')
+           .replace(/Authorization:\s*[^'"\s]+/gi, 'Authorization: [REDACTED]')
+           .replace(/data:image\/[^;]+;base64,[a-zA-Z0-9+/=]+/gi, '[BASE64_IMAGE]')
+           .replace(/(localhost|127\.0\.0\.1|file:\/\/|\/home\/|\/mnt\/|\/tmp\/|\/var\/|[A-Z]:\\[^\s'"]+)/gi, '[LOCAL_PATH]');
+
   return {
     code: error?.status || error?.code || 'UNKNOWN',
     status: error?.status || 500,
     retryable: error?.status !== 400 && error?.status !== 403,
-    messageSummary: error?.message ? String(error.message).substring(0, 100) : 'Unknown error',
+    messageSummary: msg,
     hasStaleCache: false // will be updated contextually if needed
   };
 }
@@ -128,38 +139,67 @@ export class GeminiModelDiscoveryService {
     }
 
     const discoveredModels: DiscoveredModel[] = [];
-
     for (const model of allModels) {
       const id = model.name.replace(/^models\//, '');
       const supportedMethods = getSupportedModelActions(model);
+      const displayName = model.displayName || id;
       
-      // We only care about generateContent models
-      if (!supportedMethods.includes('generateContent')) {
-        continue;
-      }
-
-      // Filter out some obvious non-generative models based on names if they snuck in
-      if (id.includes('embedding') || id.includes('text-embedding') || id.includes('tts') || id.includes('veo') || id.includes('imagen')) {
-        continue;
-      }
-
       const capability = getModelCapability(id);
+
+      // Determine Release Channel
+      let releaseChannel: 'stable' | 'preview' | 'experimental' | 'unknown' = 'unknown';
+      if (capability.releaseChannel && capability.releaseChannel !== 'unknown' as any) {
+        releaseChannel = capability.releaseChannel;
+      } else {
+        const idLower = id.toLowerCase();
+        const displayLower = displayName.toLowerCase();
+        if (idLower.includes('-preview') || displayLower.includes('preview')) {
+          releaseChannel = 'preview';
+        } else if (idLower.includes('-exp') || displayLower.includes('experimental')) {
+          releaseChannel = 'experimental';
+        } else if (capability.multimodalStatus === 'confirmed') {
+           // We only safely assume stable if it's explicitly confirmed in registry and not named preview/exp
+           releaseChannel = 'stable';
+        }
+      }
+
+      let compatibility: 'compatible' | 'unknown' | 'incompatible' = 'unknown';
+      
+      const idLower = id.toLowerCase();
+      const isIncompatibleName = idLower.includes('embedding') || 
+                                 idLower.includes('tts') || 
+                                 idLower.includes('veo') || 
+                                 idLower.includes('imagen') || 
+                                 idLower.includes('nano') || 
+                                 idLower.includes('image-only') ||
+                                 idLower.includes('lyria') ||
+                                 idLower.includes('robotics') ||
+                                 idLower.includes('computer-use') ||
+                                 idLower.includes('deep-research') ||
+                                 idLower.includes('antigravity');
+                                 
+      if (!supportedMethods.includes('generateContent') || isIncompatibleName) {
+        compatibility = 'incompatible';
+      } else if (capability.imageInput && capability.structuredOutput) {
+        compatibility = 'compatible';
+      }
 
       discoveredModels.push({
         id,
         resourceName: model.name,
-        displayName: model.displayName || id,
+        displayName: displayName,
         description: model.description || '',
         inputTokenLimit: model.inputTokenLimit || 0,
         outputTokenLimit: model.outputTokenLimit || 0,
         supportedGenerationMethods: supportedMethods,
-        releaseChannel: capability.releaseChannel,
+        releaseChannel,
+        compatibility,
         capabilities: {
           imageInput: capability.imageInput,
           structuredOutput: capability.structuredOutput,
           multimodalStatus: capability.multimodalStatus,
         },
-        selectableInFuture: true
+        selectableInFuture: compatibility === 'compatible'
       });
     }
 

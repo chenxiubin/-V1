@@ -3,11 +3,17 @@ export interface GeminiModelCapability {
   imageInput: boolean;
   structuredOutput: boolean;
   multimodalStatus: 'confirmed' | 'unknown';
-  releaseChannel: 'stable' | 'preview' | 'experimental';
+  releaseChannel: 'stable' | 'preview' | 'experimental' | 'unknown';
 }
 
 // Registry for models known to support multi-modal operations (image input and structured output)
 export const geminiModelCapabilities: Record<string, Omit<GeminiModelCapability, 'id'>> = {
+  'gemini-3.1-flash-lite': {
+    imageInput: true,
+    structuredOutput: true,
+    multimodalStatus: 'confirmed',
+    releaseChannel: 'stable'
+  },
   'gemini-3.5-flash': {
     imageInput: true,
     structuredOutput: true,
@@ -89,6 +95,6 @@ export function getModelCapability(modelId: string): GeminiModelCapability {
     imageInput: false,
     structuredOutput: false,
     multimodalStatus: 'unknown',
-    releaseChannel: 'stable'
+    releaseChannel: 'unknown'
   };
 }

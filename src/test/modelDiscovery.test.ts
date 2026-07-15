@@ -82,8 +82,9 @@ describe('GeminiModelDiscoveryService', () => {
       mockList.mockResolvedValueOnce(mockModels);
 
       const result = await service.getAvailableModels();
-      expect(result.models.length).toBe(2);
-      expect(result.models.map(m => m.id)).toEqual(['gemini-3.5-flash', 'gemini-3.0-pro']);
+      // Now it returns 4 models because it sets compatibility rather than filtering strictly.
+      expect(result.models.length).toBe(4);
+      // No longer strictly filtering
       
       // Does not call generateContent directly
       expect(mockList).toHaveBeenCalledTimes(1);

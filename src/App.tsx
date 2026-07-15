@@ -1194,7 +1194,7 @@ export default function App() {
           <div className="flex items-center gap-3">
             <div className="bg-indigo-600 text-white p-2.5 rounded-xl shadow-md shadow-indigo-600/10">
               <Sparkles className="w-5 h-5" />
-              {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+              
     </div>
             <div>
               <h1 id="app-title" className="text-xl font-bold tracking-tight text-slate-900 font-display">
@@ -1203,9 +1203,9 @@ export default function App() {
               <p className="text-xs text-slate-500 mt-0.5">
                 智能多模态台历产品图分析与布景合成工具
               </p>
-              {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+              
     </div>
-            {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+            
     </div>
           <div className="flex items-center gap-3">
             <button onClick={() => setShowModelCenter(true)} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-indigo-50 text-indigo-600 border border-indigo-200/60 transition-colors hover:bg-indigo-100">当前模型: {currentModelId} ▾</button>
@@ -1241,12 +1241,12 @@ export default function App() {
                 >
                   取消
                 </button>
-                {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                
     </div>
             )}
-            {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+            
     </div>
-          {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+          
     </div>
       </header>
 
@@ -1260,9 +1260,9 @@ export default function App() {
                 <div>
                   <p className="font-bold text-emerald-900 text-sm">更新成功</p>
                   <p className="mt-1 text-emerald-700 leading-relaxed">{patchSuccessMessage}</p>
-                  {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                  
     </div>
-                {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                
     </div>
               <button
                 onClick={() => setPatchSuccessMessage(null)}
@@ -1270,7 +1270,7 @@ export default function App() {
               >
                 ✕
               </button>
-              {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+              
     </div>
           )}
 
@@ -1288,13 +1288,13 @@ export default function App() {
                 <div className="relative">
                   <div className="w-16 h-16 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600">
                     <Loader2 className="w-8 h-8 animate-spin" />
-                    {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                    
     </div>
                   <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
                     <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-indigo-500"></span>
                   </span>
-                  {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                  
     </div>
                 <div className="max-w-md">
                   <h3 id="analyzing-title" className="text-lg font-bold text-slate-900 mb-2">
@@ -1303,7 +1303,7 @@ export default function App() {
                   <p id="analyzing-subtitle" className="text-sm text-slate-500 leading-relaxed">
                     正在深度分析台历的物理结构、底座特征、画面视角透视、主体材质反射系数及自然光源分布，请稍候。该过程通常需要 5-15 秒。
                   </p>
-                  {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                  
     </div>
                 <div className="w-full max-w-xs bg-slate-100 rounded-full h-1.5 overflow-hidden">
                   <motion.div 
@@ -1312,7 +1312,7 @@ export default function App() {
                     animate={{ width: "90%" }}
                     transition={{ duration: 10, ease: "easeOut" }}
                   />
-                  {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                  
     </div>
                 <span className="text-[11px] text-slate-400 font-mono tracking-wider">
                   STATUS: PROCESSING_VIA_GEMINI_MODEL
@@ -1337,7 +1337,7 @@ export default function App() {
                     <p className="text-xs text-slate-500 mt-1">
                       分析时间：{state.productProfile?.analyzedAt ? new Date(state.productProfile.analyzedAt).toLocaleString('zh-CN') : '暂无'}
                     </p>
-                    {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                    
     </div>
                   {state.productProfile && (
                     <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold border ${
@@ -1350,7 +1350,7 @@ export default function App() {
                       置信度：{confidenceMapping[state.productProfile.overallConfidence] || state.productProfile.overallConfidence}
                     </span>
                   )}
-                  {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                  
     </div>
 
                 {state.productProfile ? (
@@ -1364,14 +1364,14 @@ export default function App() {
                           className="max-w-full max-h-full object-contain pointer-events-none drop-shadow-sm pointer-events-none"
                           referrerPolicy="no-referrer"
                         />
-                        {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                        
     </div>
                       <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 text-[11px] text-slate-500 leading-relaxed">
                         <p className="font-semibold text-slate-700 mb-1">台历实况视角参考</p>
                         <p>该视图已锁定，作为大模型布景和透视融合计算的标准输入基准。</p>
-                        {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                        
     </div>
-                      {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                      
     </div>
 
                     {/* Right Column: Attribute Bento Grid */}
@@ -1384,16 +1384,16 @@ export default function App() {
                             <div className="flex justify-between">
                               <span className="text-slate-500">产品类型</span>
                               <span className="font-semibold text-slate-800">{productTypeMappping[state.productProfile.productType] || state.productProfile.productType}</span>
-                              {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                              
     </div>
                             <div className="flex justify-between">
                               <span className="text-slate-500">支架类型</span>
                               <span className="font-semibold text-slate-800">{bracketTypeMapping[state.productProfile.bracketType] || state.productProfile.bracketType}</span>
-                              {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                              
     </div>
-                            {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                            
     </div>
-                          {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                          
     </div>
 
                         {/* Box 2: 视角和可见度 */}
@@ -1403,7 +1403,7 @@ export default function App() {
                             <div className="flex justify-between">
                               <span className="text-slate-500">产品视角</span>
                               <span className="font-semibold text-slate-800">{viewClassMapping[state.productProfile.view.class] || state.productProfile.view.class}</span>
-                              {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                              
     </div>
                             <div className="flex justify-between">
                               <span className="text-slate-500">透视强度</span>
@@ -1411,11 +1411,11 @@ export default function App() {
                                 {state.productProfile.view.perspectiveStrength === 'high' ? '强透视' :
                                  state.productProfile.view.perspectiveStrength === 'medium' ? '中等透视' : '弱透视'}
                               </span>
-                              {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                              
     </div>
-                            {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                            
     </div>
-                          {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                          
     </div>
 
                         {/* Box 3: 顶部与侧面可见性 */}
@@ -1425,16 +1425,16 @@ export default function App() {
                             <div className="flex justify-between">
                               <span className="text-slate-500">顶部表面</span>
                               <span className="font-semibold text-slate-800">{visibleLevelMapping[state.productProfile.view.visibleTop] || state.productProfile.view.visibleTop}</span>
-                              {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                              
     </div>
                             <div className="flex justify-between">
                               <span className="text-slate-500">侧面表面</span>
                               <span className="font-semibold text-slate-800">{visibleLevelMapping[state.productProfile.view.visibleSide] || state.productProfile.view.visibleSide}</span>
-                              {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                              
     </div>
-                            {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                            
     </div>
-                          {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                          
     </div>
 
                         {/* Box 4: 既有光源 */}
@@ -1444,18 +1444,18 @@ export default function App() {
                             <div className="flex justify-between">
                               <span className="text-slate-500">光源方向</span>
                               <span className="font-semibold text-slate-800">{lightDirectionMapping[state.productProfile.existingLighting.direction] || state.productProfile.existingLighting.direction}</span>
-                              {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                              
     </div>
                             <div className="flex justify-between">
                               <span className="text-slate-500">光源色温</span>
                               <span className="font-semibold text-slate-800">{lightTemperatureMapping[state.productProfile.existingLighting.temperature] || state.productProfile.existingLighting.temperature}</span>
-                              {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                              
     </div>
-                            {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                            
     </div>
-                          {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                          
     </div>
-                        {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                        
     </div>
 
                       {/* Box 5: 材质与反射、色温硬度 */}
@@ -1468,31 +1468,31 @@ export default function App() {
                               <span className="font-semibold text-slate-800">
                                 {state.productProfile.materials.map(m => `${materialMapping[m.name] || m.name} (${reflectivityMapping[m.reflectivity] || m.reflectivity})`).join('、')}
                               </span>
-                              {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                              
     </div>
                             <div>
                               <span className="text-slate-500 block mb-0.5">色彩边缘亮度</span>
                               <span className="font-semibold text-slate-800">{edgeBrightnessMapping[state.productProfile.palette.edgeBrightness] || state.productProfile.palette.edgeBrightness}</span>
-                              {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                              
     </div>
-                            {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                            
     </div>
                           <div className="space-y-2">
                             <div>
                               <span className="text-slate-500 block mb-0.5">光影软硬度</span>
                               <span className="font-semibold text-slate-800">{lightSoftnessMapping[state.productProfile.existingLighting.softness] || state.productProfile.existingLighting.softness}</span>
-                              {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                              
     </div>
                             <div>
                               <span className="text-slate-500 block mb-0.5">画面对比度</span>
                               <span className="font-semibold text-slate-800">{lightContrastMapping[state.productProfile.existingLighting.contrast] || state.productProfile.existingLighting.contrast}</span>
-                              {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                              
     </div>
-                            {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                            
     </div>
-                          {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                          
     </div>
-                        {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                        
     </div>
 
                       {/* Box 6: 色彩分布 */}
@@ -1503,16 +1503,16 @@ export default function App() {
                             <div key={idx} className="flex items-center gap-1.5 bg-white border border-slate-200/60 px-2 py-1 rounded-lg">
                               <span className="w-3.5 h-3.5 rounded-full border border-slate-200 shadow-inner" style={{ backgroundColor: color }} />
                               <span className="text-[11px] font-mono font-semibold text-slate-600">{color}</span>
-                              {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                              
     </div>
                           ))}
-                          {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                          
     </div>
-                        {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                        
     </div>
-                      {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                      
     </div>
-                    {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                    
     </div>
                 ) : (
                   <div className="text-center py-12 text-slate-400">未能成功读取分析数据。</div>
@@ -1543,24 +1543,24 @@ export default function App() {
                                 <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-semibold">
                                   {confidenceMapping[item.confidence] || item.confidence}
                                 </span>
-                                {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                                
     </div>
                               <p className="mt-1 text-slate-600 leading-relaxed">{item.reason}</p>
-                              {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                              
     </div>
-                            {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                            
     </div>
                         ))}
-                        {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                        
     </div>
                     ) : (
                       <div className="p-3 bg-emerald-50/60 border border-emerald-100 text-emerald-800 rounded-xl text-xs flex items-center gap-2">
                         <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
                         <span>大模型在各项属性提取中表现出高水平的一致度，未标注任何偏离项。</span>
-                        {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                        
     </div>
                     )}
-                    {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                    
     </div>
                 )}
 
@@ -1576,7 +1576,7 @@ export default function App() {
                     <div>
                       <p className="font-semibold">分析结果已确认</p>
                       <p className="mt-0.5 opacity-90">该产品的物理几何属性及光源配置已成功绑定，并持久化写入数据库中！</p>
-                      {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                      
     </div>
                   </motion.div>
                 )}
@@ -1602,7 +1602,7 @@ export default function App() {
                       <RotateCcw className="w-4 h-4 text-slate-400" />
                       重新分析
                     </button>
-                    {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                    
     </div>
                   <button
                     id="btn-confirm-review"
@@ -1622,7 +1622,7 @@ export default function App() {
                       </>
                     )}
                   </button>
-                  {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                  
     </div>
               </motion.div>
             ) : state.status === 'GUIDED_QUESTIONS' ? (
@@ -1725,7 +1725,7 @@ export default function App() {
                     >
                       {state.matchRequestStatus === 'loading' ? '正在分析匹配...' : '分析产品与场景匹配'}
                     </button>
-                    {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                    
     </div>
                 )}
                 {state.status === 'APPROVED' && (
@@ -1739,7 +1739,7 @@ export default function App() {
                     >
                       选择生产模板
                     </button>
-                    {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                    
     </div>
                 )}
                 {state.status === 'PREVIEW_IMPORTED' && state.matchReport && state.matchReport.productSceneStatus === 'pass' && (
@@ -1750,10 +1750,10 @@ export default function App() {
                     >
                       通过场景验证
                     </button>
-                    {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                    
     </div>
                 )}
-                {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                
     </div>
             ) : state.status === 'TEMPLATE_SELECTION' ? (
               <motion.div
@@ -1811,7 +1811,7 @@ export default function App() {
                     <p className="text-sm text-slate-500 leading-relaxed">
                       上传真实台历透明产品图，AI 将分析产品结构、视角、材质和现有光线，并自动规划适合的空场景、构图与风格，生成可复制的中文提示词和 JSON。
                     </p>
-                    {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                    
     </div>
 
                   <div className="border-t border-slate-100 pt-6 space-y-6">
@@ -1827,7 +1827,7 @@ export default function App() {
                         placeholder="请输入台历智能场景规划项目名..."
                         className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-slate-50/50"
                       />
-                      {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                      
     </div>
 
                     {/* Upload Box */}
@@ -1860,7 +1860,7 @@ export default function App() {
                             dragActive ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-500 group-hover:bg-indigo-50 group-hover:text-indigo-500'
                           }`}>
                             <Upload className="w-6 h-6" />
-                            {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                            
     </div>
                           <div>
                             <p className="text-sm font-bold text-slate-800">
@@ -1869,17 +1869,17 @@ export default function App() {
                             <p className="text-xs text-slate-400 mt-2">
                               支持透明背景 PNG、JPG、WebP 格式，最大支持 10MB。支持拖拽或直接 Ctrl+V 粘贴文件上传。
                             </p>
-                            {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                            
     </div>
-                          {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                          
     </div>
-                        {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                        
     </div>
-                      {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                      
     </div>
-                    {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                    
     </div>
-                  {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                  
     </div>
 
                 {/* Demo asset quick launch section */}
@@ -1887,12 +1887,12 @@ export default function App() {
                   <div className="bg-slate-50 border border-slate-200/60 rounded-2xl p-4 text-center space-y-3 relative overflow-hidden">
                     <div className="absolute top-0 right-0 bg-amber-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-bl-lg">
                       演示数据
-                      {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                      
     </div>
                     <div className="space-y-1">
                       <h4 className="text-xs font-bold text-slate-800">没有透明背景 PNG 台历？</h4>
                       <p className="text-[10px] text-slate-400">一键导入系统内置台历真实资产与背景，全速体验完整 AI 场景规划分析！</p>
-                      {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                      
     </div>
                     <button
                       type="button"
@@ -1971,7 +1971,7 @@ export default function App() {
                       <Sparkles className="w-3.5 h-3.5" />
                       导入内置真实台历并一键 AI 分析 (演示数据)
                     </button>
-                    {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                    
     </div>
                 )}
 
@@ -1988,7 +1988,7 @@ export default function App() {
                       <div>
                         <p className="font-semibold">操作错误</p>
                         <p className="mt-0.5 opacity-90">{errorMessage.message}</p>
-                        {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                        
     </div>
                     </motion.div>
                   )}
@@ -2022,7 +2022,7 @@ export default function App() {
                       ) : (
                         <div className="text-slate-400 text-xs">暂无预览</div>
                       )}
-                      {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                      
     </div>
                     <button
                       type="button"
@@ -2032,7 +2032,7 @@ export default function App() {
                       <Trash2 className="w-4 h-4 text-slate-400" />
                       替换产品
                     </button>
-                    {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                    
     </div>
 
                   {/* Right Column: details, risk warning, and primary button */}
@@ -2043,21 +2043,21 @@ export default function App() {
                         <span className="font-bold text-slate-800 font-mono truncate max-w-[220px]">
                           {state.productAsset?.name}
                         </span>
-                        {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                        
     </div>
                       <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
                         <span className="text-slate-400 font-medium">图像物理尺寸</span>
                         <span className="font-bold text-slate-800 font-mono">
                           {state.productAsset?.width} × {state.productAsset?.height} px
                         </span>
-                        {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                        
     </div>
                       <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
                         <span className="text-slate-400 font-medium">文件格式</span>
                         <span className="font-bold text-slate-800 uppercase">
                           {state.productAsset?.mimeType.replace('image/', '')}
                         </span>
-                        {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                        
     </div>
                       <div className="flex justify-between items-center">
                         <span className="text-slate-400 font-medium">透明度检测 (Alpha)</span>
@@ -2068,9 +2068,9 @@ export default function App() {
                         }`}>
                           {state.productAsset?.hasAlpha ? '包含透明 Alpha 通道' : '不包含透明通道'}
                         </span>
-                        {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                        
     </div>
-                      {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                      
     </div>
 
                     {/* Risk Warning Box */}
@@ -2086,7 +2086,7 @@ export default function App() {
                                 <br />
                                 检测到该图片背景不透明。在后续的多模态空间计算与布景合成中，可能残留白色或原有背景杂色。强烈建议使用已经过精准抠图的 32-bit 透明背景 PNG。
                               </p>
-                              {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                              
     </div>
                           ) : state.productAsset.mimeType !== 'image/png' ? (
                             <div className="flex gap-2.5 text-blue-800 bg-blue-50/50 border-blue-100">
@@ -2096,7 +2096,7 @@ export default function App() {
                                 <br />
                                 当前文件为 WebP/JPEG。虽支持导入，但使用透明背景的高分辨率 PNG 格式能获得更加精确的视角特征与材质反射率分析。
                               </p>
-                              {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                              
     </div>
                           ) : (state.productAsset.width < 500 || state.productAsset.height < 500) ? (
                             <div className="flex gap-2.5 text-amber-800 bg-amber-50/50 border-amber-100">
@@ -2106,7 +2106,7 @@ export default function App() {
                                 <br />
                                 图像尺寸（{state.productAsset.width}x{state.productAsset.height} px）低于 500px。低分辨率可能会导致材质纹理与光线投影识别产生轻微偏差。
                               </p>
-                              {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                              
     </div>
                           ) : (
                             <div className="flex gap-2.5 text-emerald-800 bg-emerald-50/50 border-emerald-100">
@@ -2116,13 +2116,13 @@ export default function App() {
                                 <br />
                                 高分辨率透明背景 PNG 资产，无任何通道缺陷，物理透视边界清晰，已准备好进行多模态空间透视与光线配比计算。
                               </p>
-                              {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                              
     </div>
                           )}
-                          {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                          
     </div>
                       )}
-                      {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                      
     </div>
 
                     {/* Error display if previous run failed */}
@@ -2133,9 +2133,9 @@ export default function App() {
                           <div>
                             <p className="font-bold">智能分析失败</p>
                             <p className="mt-0.5 text-xs opacity-90">{analyzingError.message}</p>
-                            {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                            
     </div>
-                          {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                          
     </div>
                         {analyzingError.retryable && (
                           <div className="flex justify-end">
@@ -2148,10 +2148,10 @@ export default function App() {
                               <RotateCcw className="w-3.5 h-3.5" />
                               重新分析
                             </button>
-                            {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                            
     </div>
                         )}
-                        {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                        
     </div>
                     )}
 
@@ -2174,16 +2174,18 @@ export default function App() {
                         </>
                       )}
                     </button>
-                    {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                    
     </div>
-                  {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+                  
     </div>
               </motion.div>
             ) : null}
           </AnimatePresence>
-          {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
+          
     </div>
       </main>
+      
+
       {showModelCenter && <ModelCenterPanel onClose={() => setShowModelCenter(false)} />}
     </div>
   );

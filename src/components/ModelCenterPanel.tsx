@@ -36,29 +36,19 @@ export function ModelCenterPanel({ onClose }: ModelCenterPanelProps) {
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
-    
-    // Add event listener for click outside
-    const handleClickOutside = (e: MouseEvent) => {
-      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
-        onClose();
-      }
-    };
-
     window.addEventListener('keydown', handleEsc);
-    // Use timeout to prevent immediate close if it was opened via a click
-    setTimeout(() => {
-      window.addEventListener('click', handleClickOutside);
-    }, 10);
-
     return () => {
       window.removeEventListener('keydown', handleEsc);
-      window.removeEventListener('click', handleClickOutside);
+
     };
   }, [onClose]);
 
   if (!data && loading) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-900/40 backdrop-blur-sm">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-900/40 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="model-center-title">
         <div ref={panelRef} className="w-full max-w-2xl bg-white rounded-2xl shadow-xl overflow-hidden flex flex-col items-center justify-center h-64">
           <RefreshCw className="w-8 h-8 text-indigo-500 animate-spin mb-4" />
           <p className="text-sm font-medium text-slate-600">正在加载模型列表...</p>
@@ -68,20 +58,21 @@ export function ModelCenterPanel({ onClose }: ModelCenterPanelProps) {
   }
 
   const currentModel = data?.models.find(m => m.id === data.currentConfiguredModelId);
-  const stableModels = data?.models.filter(m => m.id !== data.currentConfiguredModelId && m.capabilities.multimodalStatus === 'confirmed' && m.releaseChannel === 'stable') || [];
-  const previewModels = data?.models.filter(m => m.id !== data.currentConfiguredModelId && m.capabilities.multimodalStatus === 'confirmed' && (m.releaseChannel === 'preview' || m.releaseChannel === 'experimental')) || [];
-  const unknownModels = data?.models.filter(m => m.id !== data.currentConfiguredModelId && m.capabilities.multimodalStatus === 'unknown') || [];
+  const eligibleModels = data?.models.filter(m => m.compatibility !== 'incompatible' && m.id !== data.currentConfiguredModelId) || [];
+  const stableModels = eligibleModels.filter(m => m.compatibility === 'compatible' && m.releaseChannel === 'stable');
+  const previewModels = eligibleModels.filter(m => m.compatibility === 'compatible' && (m.releaseChannel === 'preview' || m.releaseChannel === 'experimental'));
+  const unknownModels = eligibleModels.filter(m => m.compatibility === 'unknown');
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-900/40 backdrop-blur-sm">
-      <div ref={panelRef} className="w-full max-w-3xl max-h-[90vh] bg-white rounded-2xl shadow-xl overflow-hidden flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-900/40 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="model-center-title" onClick={onClose}>
+      <div ref={panelRef} className="w-full max-w-3xl max-h-[90vh] bg-white rounded-2xl shadow-xl overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
           <div>
-            <h2 className="text-lg font-semibold text-slate-800">模型中心</h2>
+            <h2 id="model-center-title" className="text-lg font-semibold text-slate-800">模型中心</h2>
             <p className="text-sm text-slate-500 mt-0.5">根据当前项目的 Gemini API Key 获取可访问的多模态模型。</p>
           </div>
-          <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-200/50 rounded-full transition-colors">
+          <button onClick={onClose} aria-label="关闭模型中心" className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-200/50 rounded-full transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -114,6 +105,7 @@ export function ModelCenterPanel({ onClose }: ModelCenterPanelProps) {
               )}
             </div>
             <button 
+              aria-label="刷新模型列表"
               onClick={() => fetchModels(true)}
               disabled={loading}
               className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors disabled:opacity-50"
