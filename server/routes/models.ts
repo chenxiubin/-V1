@@ -16,7 +16,7 @@ router.get('/models', async (req: Request, res: Response) => {
     if (error.code) {
       res.status(503).json({
         code: error.code,
-        message: error.message,
+        message: sanitized.messageSummary,
         retryable: error.retryable
       });
     } else {

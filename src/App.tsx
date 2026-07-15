@@ -19,7 +19,7 @@ import {
   Info
 } from 'lucide-react';
 import { ProjectStore } from './store/projectStore';
-import { ProjectState, ProductAsset, GuidedAnswer, SceneRecipeSchema, PromptDocumentSchema } from './types/schemas';
+import { ProjectState, ProductAsset, GuidedAnswer, SceneRecipeSchema, PromptDocumentSchema, AnalyzeMatchInput } from './types/schemas';
 import { saveAsset, getAsset, listProjects, deleteProject } from './lib/db';
 import { analyzeImageFile, ImageAnalysis } from './lib/imageAnalyzer';
 import { RealAdapter } from './services/ai/realAdapter';
@@ -31,7 +31,6 @@ import { ExternalGenerationPanel } from './components/ExternalGenerationPanel';
 import { ProductScenePreview } from './components/ProductScenePreview';
 import { MatchReportPanel } from './components/MatchReportPanel';
 import { RecipeVersionHistoryPanel } from './components/RecipeVersionHistoryPanel';
-import { AnalyzeMatchInput } from './types/schemas';
 
 import { TemplateGallery } from './components/TemplateGallery';
 import { TemplateDetailView } from './components/TemplateDetailView';

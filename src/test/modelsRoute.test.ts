@@ -3,59 +3,76 @@ import request from 'supertest';
 import express from 'express';
 import modelsRouter from '../../server/routes/models.js';
 
-// We need to mock GeminiModelDiscoveryService
-vi.mock('../../server/services/geminiModelDiscovery.js', () => {
+vi.mock('../../server/services/geminiModelDiscovery.js', async (importOriginal) => {
+  const actual = await importOriginal();
   return {
+    ...actual as any,
     GeminiModelDiscoveryService: class {
+      private reqCount = 0;
       async getAvailableModels(refresh: boolean) {
-        if (refresh) {
-          const err = new Error('Raw Secret is sk-1234567890123456789012345678901234567890 AIzaSyB123');
-          (err as any).status = 403;
+        this.reqCount++;
+        
+        if (this.reqCount === 1) {
+          // Scenario A: Error with code but contains sensitive info
+          const err = new Error('Raw Secret is sk-1234567890123456789012345678901234567890 AIzaSyB123 file:///var/www');
+          (err as any).code = 'MODEL_LIST_UNAVAILABLE';
+          (err as any).retryable = true;
           throw err;
+        } else if (this.reqCount === 2) {
+          // Scenario B: Unknown error
+          throw new Error('Unknown server failure');
+        } else if (this.reqCount === 3) {
+          // Scenario C: Stale cache
+          // But wait, the route just calls getAvailableModels. The cache logic is in the service.
+          // If the service returns a stale cache, the route just sends it.
+          // So we should return a stale cache object here.
+          return {
+            models: [],
+            stale: true,
+            refreshError: 'Network error [REDACTED]'
+          };
         }
+        
         return { models: [], stale: false };
       }
-    },
-    sanitizeModelDiscoveryError: (error: any) => {
-      // Re-implement or just pass through if we want to test router's usage
-      // Wait, the router uses the actual sanitize from the module.
-      // But we mocked the module, so we need to provide sanitizeModelDiscoveryError in the mock!
-      let msg = error?.message ? String(error.message).substring(0, 200) : 'Unknown error';
-      msg = msg.replace(/AIza[a-zA-Z0-9_-]+/g, '[REDACTED]')
-               .replace(/sk-[a-zA-Z0-9]+/g, '[REDACTED]')
-               .replace(/(Bearer|api_key=|key=|token=|access_token=)[^&\s'"]+/gi, '$1[REDACTED]')
-               .replace(/Authorization:\s*[^'"\s]+/gi, 'Authorization: [REDACTED]')
-               .replace(/data:image\/[^;]+;base64,[a-zA-Z0-9+/=]+/gi, '[REDACTED]')
-               .replace(/(localhost|127\.0\.0\.1|file:\/\/|\/home\/|\/mnt\/|\/tmp\/|\/var\/|[A-Z]:\\[^\s'"]+)/gi, '[REDACTED]');
-      return {
-        code: error?.status || error?.code || 'UNKNOWN',
-        status: error?.status || 500,
-        retryable: error?.status !== 400 && error?.status !== 403,
-        messageSummary: msg,
-        hasStaleCache: false
-      };
     }
   };
 });
 
 const app = express();
-app.use('/', modelsRouter);
+app.use('/api/ai', modelsRouter);
 
 describe('models.ts route', () => {
-  it('returns successful result', async () => {
-    const res = await request(app).get('/models');
-    expect(res.status).toBe(200);
-    expect(res.body.models).toEqual([]);
+  it('Scenario A: sanitizes errors even with code', async () => {
+    const res = await request(app).get('/api/ai/models');
+    expect(res.status).toBe(503);
+    expect(res.body.code).toBe('MODEL_LIST_UNAVAILABLE');
+    expect(res.body.retryable).toBe(true);
+    expect(res.body.message).not.toContain('sk-');
+    expect(res.body.message).not.toContain('AIza');
+    expect(res.body.message).not.toContain('file://');
+    expect(res.body.message).toContain('[REDACTED]');
+    expect(JSON.stringify(res.body)).not.toContain('sk-');
   });
 
-  it('sanitizes errors and returns 503 for raw errors without exposing secrets', async () => {
-    const res = await request(app).get('/models?refresh=true');
-    expect(res.status).toBe(500); // Because error doesn't have custom code in this mock, it falls to 500
-    expect(res.body.code).toBe(403);
-    expect(res.body.retryable).toBe(false);
+  it('Scenario B: normal unknown error', async () => {
+    const res = await request(app).get('/api/ai/models');
+    expect(res.status).toBe(500);
+    expect(res.body.code).toBe('UNKNOWN');
+    expect(res.body.retryable).toBe(true);
     expect(res.body.message).toBe('暂时无法获取当前项目可用模型，请稍后刷新。');
-    // Important: the raw message should NOT be in the body at all!
-    expect(JSON.stringify(res.body)).not.toContain('sk-');
-    expect(JSON.stringify(res.body)).not.toContain('AIza');
+  });
+  
+  it('Scenario C: stale cache returned with 200', async () => {
+    const res = await request(app).get('/api/ai/models');
+    expect(res.status).toBe(200);
+    expect(res.body.stale).toBe(true);
+    expect(res.body.refreshError).toBe('Network error [REDACTED]');
+  });
+  
+  it('returns successful result', async () => {
+    const res = await request(app).get('/api/ai/models');
+    expect(res.status).toBe(200);
+    expect(res.body.models).toEqual([]);
   });
 });

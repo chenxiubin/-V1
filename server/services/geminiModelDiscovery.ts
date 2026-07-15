@@ -99,9 +99,11 @@ export class GeminiModelDiscoveryService {
         this.pendingRequest = null;
         if (this.cache) {
           // If we have a cache, serve stale cache with an error note
-          this.cache.stale = true;
-          this.cache.refreshError = sanitizeModelDiscoveryError(error).messageSummary;
-          return this.cache;
+          return {
+            ...this.cache,
+            stale: true,
+            refreshError: sanitizeModelDiscoveryError(error).messageSummary
+          };
         }
         
         // Otherwise throw appropriate error

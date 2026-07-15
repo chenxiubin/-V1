@@ -12,7 +12,10 @@ vi.mock('../lib/db', () => ({
   getProject: vi.fn().mockResolvedValue(null),
   listProjects: vi.fn().mockResolvedValue([]),
   saveProject: vi.fn(),
-  deleteProject: vi.fn()
+  deleteProject: vi.fn(),
+  getAsset: vi.fn().mockResolvedValue(null),
+  saveAsset: vi.fn(),
+  deleteAsset: vi.fn()
 }));
 
 vi.mock('../services/modelDiscoveryClient', () => ({
@@ -33,14 +36,26 @@ window.HTMLElement.prototype.scrollIntoView = vi.fn();
 describe('ModelCenter Integration', () => {
   
   
+  
+  let originalFetch = global.fetch;
   beforeEach(() => {
     vi.resetAllMocks();
-    
+    global.fetch = vi.fn().mockImplementation((url) => {
+      if (url === '/api/health') {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ status: 'ok' })
+        });
+      }
+      return Promise.reject(new Error('unmocked fetch: ' + url));
+    });
   });
 
   afterEach(() => {
     cleanup();
+    global.fetch = originalFetch;
   });
+
 
   const mockSuccessResponse = {
     models: [
