@@ -19,16 +19,6 @@ export const ProductAssetSchema = z.object({
 });
 export type ProductAsset = z.infer<typeof ProductAssetSchema>;
 
-export const ImportedSceneImageSchema = z.object({
-  id: z.string(),
-  fileName: z.string(),
-  mimeType: z.enum(['image/png', 'image/jpeg', 'image/webp']),
-  width: z.number(),
-  height: z.number(),
-  persistedAssetRef: z.string(),
-  createdAt: z.string(),
-});
-export type ImportedSceneImage = z.infer<typeof ImportedSceneImageSchema>;
 
 // ==========================================
 // Product Profile Schemas
@@ -361,42 +351,6 @@ export const MatchReportSchema = z.object({
 });
 export type MatchReport = z.infer<typeof MatchReportSchema>;
 
-export const SceneMatchReportSchema = z.object({
-  id: z.string(),
-  recipeId: z.string(),
-  sourceImageId: z.string(),
-  createdAt: z.string(),
-  overallScore: z.number().min(0).max(100),
-  summary: z.string(),
-  productMatch: z.object({
-    score: z.number(),
-    passed: z.boolean(),
-    issues: z.array(z.string()),
-  }),
-  sceneMatch: z.object({
-    score: z.number(),
-    passed: z.boolean(),
-    issues: z.array(z.string()),
-  }),
-  compositionMatch: z.object({
-    score: z.number(),
-    passed: z.boolean(),
-    issues: z.array(z.string()),
-  }),
-  lightingMatch: z.object({
-    score: z.number(),
-    passed: z.boolean(),
-    issues: z.array(z.string()),
-  }),
-  improvementSuggestions: z.array(z.object({
-    id: z.string(),
-    category: z.enum(['product', 'scene', 'composition', 'lighting']),
-    priority: z.enum(['high', 'medium', 'low']),
-    suggestion: z.string(),
-  })),
-});
-export type SceneMatchReport = z.infer<typeof SceneMatchReportSchema>;
-
 export const PatchSuggestionSchema = z.object({
   target: z.enum(['product', 'scene', 'composition', 'lighting']),
   before: z.string(),
@@ -459,9 +413,6 @@ export const AppStatusSchema = z.enum([
   'GUIDED_QUESTIONS',
   'DIRECTION_SELECTION',
   'RECIPE_READY',
-  'IMAGE_IMPORTED',
-  'MATCH_ANALYZING',
-  'MATCH_READY',
   'AWAITING_EXTERNAL_GENERATION',
   'PREVIEW_IMPORTED',
   'ANALYZING_MATCH',
@@ -658,8 +609,6 @@ export const ProjectStateSchema = z.object({
   matchRequestId: z.string().nullable().optional(),
   seriesProject: SeriesProjectSchema.nullable(),
   ignoredMatchIssueIds: z.array(z.string()).default([]),
-  importedSceneImages: z.array(ImportedSceneImageSchema).default([]),
-  currentMatchReport: SceneMatchReportSchema.nullable().optional(),
   // Phase 7: Template State
   templateLibrary: z.array(TemplateSuiteSchema).default([]),
   selectedTemplateSuiteId: z.string().nullable().default(null),

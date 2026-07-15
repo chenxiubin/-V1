@@ -17,9 +17,7 @@ import {
   AssetReference,
   CanvasDocumentSchema,
   RenderSnapshot,
-  RenderSnapshotSchema,
-  ImportedSceneImage,
-  SceneMatchReport
+  RenderSnapshotSchema
 } from '../types/schemas';
 import { RealAdapter } from '../services/ai/realAdapter';
 import { validateGuidedAnswerCoverage, validateSceneDirectionSet, getSafeRecoveryState } from './phase3StateValidation';
@@ -81,8 +79,6 @@ export class ProjectStore {
       matchRequestId: null,
       seriesProject: null,
       ignoredMatchIssueIds: [],
-      importedSceneImages: [],
-      currentMatchReport: null,
       // Phase 7: Template State
       templateLibrary: [],
       selectedTemplateSuiteId: null,
@@ -219,36 +215,6 @@ export class ProjectStore {
         }
         break;
 
-      case 'IMAGE_IMPORTED':
-        if (!s.productAsset || !s.productProfile || (s.sceneRecipes.length === 0 && !s.sceneRecipe) || s.activeVersion === null) {
-          return { allowed: false, reason: '必须存在已生成的SceneRecipe及当前活动版本号' };
-        }
-        if (!s.importedSceneImages || s.importedSceneImages.length === 0) {
-          return { allowed: false, reason: '必须存在导入的外部生成图片' };
-        }
-        break;
-
-      case 'MATCH_ANALYZING':
-        if (!s.productAsset || !s.productProfile || (s.sceneRecipes.length === 0 && !s.sceneRecipe) || s.activeVersion === null) {
-          return { allowed: false, reason: '必须存在已生成的SceneRecipe及当前活动版本号' };
-        }
-        if (!s.importedSceneImages || s.importedSceneImages.length === 0) {
-          return { allowed: false, reason: '必须存在导入的外部生成图片' };
-        }
-        break;
-
-      case 'MATCH_READY':
-        if (!s.productAsset || !s.productProfile || (s.sceneRecipes.length === 0 && !s.sceneRecipe) || s.activeVersion === null) {
-          return { allowed: false, reason: '必须存在已生成的SceneRecipe及当前活动版本号' };
-        }
-        if (!s.importedSceneImages || s.importedSceneImages.length === 0) {
-          return { allowed: false, reason: '必须存在导入的外部生成图片' };
-        }
-        if (!s.currentMatchReport) {
-          return { allowed: false, reason: '必须存在匹配分析报告' };
-        }
-        break;
-
       case 'SERIES_ACTIVE':
         if (!s.seriesProject) {
           return { allowed: false, reason: '没有已配置的SeriesProject不能进入SERIES_ACTIVE' };
@@ -335,30 +301,6 @@ export class ProjectStore {
     this.updateState(() => ({
       sceneAsset: asset,
       status: 'PREVIEW_IMPORTED',
-    }));
-  }
-
-  importSceneImage(image: ImportedSceneImage): void {
-    const currentImages = this.state.importedSceneImages || [];
-    this.updateState(() => ({
-      importedSceneImages: [...currentImages, image],
-      status: 'IMAGE_IMPORTED',
-    }));
-  }
-
-  startMatchAnalysis(): void {
-    this.updateState(() => ({
-      status: 'MATCH_ANALYZING',
-    }));
-  }
-
-  setCurrentMatchReport(report: SceneMatchReport): void {
-    if (this.state.sceneRecipe && report.recipeId !== this.state.sceneRecipe.recipeId) {
-      throw new Error('配方 ID 不一致，拒绝保存');
-    }
-    this.updateState(() => ({
-      currentMatchReport: report,
-      status: 'MATCH_READY',
     }));
   }
 
