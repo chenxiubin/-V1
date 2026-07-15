@@ -1,6 +1,7 @@
 import express from 'express';
 import analyzeProductRouter from './routes/analyzeProduct.js';
 import scenePlannerRouter from './routes/scenePlanner.js';
+import modelsRouter from './routes/models.js';
 import { GeminiProductAnalysisService } from './services/geminiProductAnalyzer.js';
 import { GeminiScenePlannerService } from './services/geminiScenePlanner.js';
 
@@ -23,6 +24,7 @@ app.set('scenePlannerService', new GeminiScenePlannerService());
 // Mount API routes
 app.use('/api/ai', analyzeProductRouter);
 app.use('/api/ai', scenePlannerRouter);
+app.use('/api/ai', modelsRouter);
 // Fallback for unmatched API routes
 app.use('/api', (req, res) => {
   res.status(404).json({
