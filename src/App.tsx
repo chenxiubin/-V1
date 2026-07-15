@@ -19,7 +19,7 @@ import {
   Info
 } from 'lucide-react';
 import { ProjectStore } from './store/projectStore';
-import { ProjectState, ProductAsset, GuidedAnswer, SceneRecipeSchema, PromptDocumentSchema } from './types/schemas';
+import { ProjectState, ProductAsset, GuidedAnswer, SceneRecipeSchema, PromptDocumentSchema, ImportedSceneImage } from './types/schemas';
 import { saveAsset, getAsset, listProjects, deleteProject } from './lib/db';
 import { analyzeImageFile, ImageAnalysis } from './lib/imageAnalyzer';
 import { RealAdapter } from './services/ai/realAdapter';
@@ -32,6 +32,10 @@ import { ProductScenePreview } from './components/ProductScenePreview';
 import { MatchReportPanel } from './components/MatchReportPanel';
 import { RecipeVersionHistoryPanel } from './components/RecipeVersionHistoryPanel';
 import { AnalyzeMatchInput } from './types/schemas';
+
+import { SceneImageImport } from './components/SceneImageImport';
+import { SceneMatchReportView } from './components/SceneMatchReportView';
+import { analyzeSceneMatch } from './services/matchAnalyzer';
 
 import { TemplateGallery } from './components/TemplateGallery';
 import { TemplateDetailView } from './components/TemplateDetailView';
@@ -59,6 +63,9 @@ const statusTranslations: Record<string, string> = {
   GUIDED_QUESTIONS: '引导问答中',
   DIRECTION_SELECTION: '场景方向确认',
   RECIPE_READY: '场景配方就绪',
+  IMAGE_IMPORTED: '外部图片已导回',
+  MATCH_ANALYZING: '匹配度分析中',
+  MATCH_READY: '分析报告就绪',
   AWAITING_EXTERNAL_GENERATION: '等待外部生成',
   PREVIEW_IMPORTED: '已导入预览',
   ANALYZING_MATCH: '正在分析匹配',
@@ -188,6 +195,9 @@ export default function App() {
   const [selectedProductType, setSelectedProductType] = useState('ring_top_tent');
   const [errorMessage, setErrorMessage] = useState<{ message: string; retryable: boolean } | null>(null);
   const [localPreviewUrl, setLocalPreviewUrl] = useState<string | null>(null);
+  const [importedImageUrl, setImportedImageUrl] = useState<string | null>(null);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [aiMode, setAiMode] = useState<'mock' | 'real'>('mock');
   const [savedProjects, setSavedProjects] = useState<any[]>([]);
   const [dragActive, setDragActive] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
@@ -285,6 +295,27 @@ export default function App() {
       }
     }
   }, [state.productAsset]);
+
+  // Update imported scene image preview URL when importedSceneImages list changes
+  useEffect(() => {
+    const lastImage = state.importedSceneImages?.[state.importedSceneImages.length - 1];
+    if (lastImage) {
+      getAsset(lastImage.persistedAssetRef).then((blob) => {
+        if (blob) {
+          const url = URL.createObjectURL(blob);
+          setImportedImageUrl((old) => {
+            if (old) URL.revokeObjectURL(old);
+            return url;
+          });
+        }
+      });
+    } else {
+      setImportedImageUrl((old) => {
+        if (old) URL.revokeObjectURL(old);
+        return null;
+      });
+    }
+  }, [state.importedSceneImages]);
 
   // Global Paste Event Listener
   useEffect(() => {
@@ -495,6 +526,60 @@ export default function App() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSceneImageImported = async (image: ImportedSceneImage) => {
+    setAnalysisError(null);
+    projectStore.importSceneImage(image);
+    await projectStore.persistToDB();
+    await refreshSavedProjects();
+  };
+
+  const handleRemoveImportedSceneImage = async () => {
+    setAnalysisError(null);
+    projectStore.updateState(() => ({
+      importedSceneImages: [],
+      currentMatchReport: null,
+      status: 'RECIPE_READY',
+    }));
+    await projectStore.persistToDB();
+    await refreshSavedProjects();
+  };
+
+  const handleBackToRecipe = () => {
+    projectStore.updateState(() => ({
+      status: 'RECIPE_READY',
+    }));
+  };
+
+  const handleStartAnalysis = async () => {
+    const lastImage = state.importedSceneImages?.[state.importedSceneImages.length - 1];
+    if (!state.productAsset || !lastImage || !state.sceneRecipe || !state.promptDocument) {
+      setAnalysisError('缺少匹配度分析必要的上下文数据（产品资产、导回图片、或配方/提示词）');
+      return;
+    }
+
+    setAnalysisError(null);
+    projectStore.startMatchAnalysis();
+
+    try {
+      const report = await analyzeSceneMatch({
+        productAsset: state.productAsset,
+        sceneImage: lastImage,
+        recipe: state.sceneRecipe,
+        promptDocument: state.promptDocument,
+      }, aiMode);
+
+      projectStore.setCurrentMatchReport(report);
+      await projectStore.persistToDB();
+      await refreshSavedProjects();
+    } catch (err: any) {
+      console.error('Scene Match analysis failed:', err);
+      projectStore.updateState(() => ({
+        status: 'IMAGE_IMPORTED',
+      }));
+      setAnalysisError(err.message || '匹配度分析服务调用失败，请重试');
     }
   };
 
@@ -1587,12 +1672,138 @@ export default function App() {
                 />
               </motion.div>
             ) : state.status === 'RECIPE_READY' ? (
-              <RecipeReadyView
-                recipe={state.sceneRecipe!}
-                promptDocument={state.promptDocument!}
-                selectedDirection={
-                  state.sceneDirections?.find(d => d.id === state.selectedDirectionId)
-                }
+              <div className="space-y-8" id="recipe-ready-layout">
+                <RecipeReadyView
+                  recipe={state.sceneRecipe!}
+                  promptDocument={state.promptDocument!}
+                  selectedDirection={
+                    state.sceneDirections?.find(d => d.id === state.selectedDirectionId)
+                  }
+                />
+                
+                <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4" id="recipe-import-scene-section">
+                  <div className="text-center space-y-1">
+                    <h3 className="font-bold text-slate-950 text-base">外部生成图片导回</h3>
+                    <p className="text-xs text-slate-500">
+                      通过外部生图工具（如 Midjourney、Stable Diffusion、Nano Banana 等）参考上述配方生成场景图后，在此处上传进行场景与产品的一致性审计。
+                    </p>
+                  </div>
+                  <SceneImageImport onImport={handleSceneImageImported} />
+                </div>
+              </div>
+            ) : state.status === 'IMAGE_IMPORTED' ? (
+              <div className="space-y-6" id="image-imported-layout">
+                <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-6">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+                    <div>
+                      <h3 className="font-bold text-slate-900 text-sm">外部生成图已导回</h3>
+                      <p className="text-xs text-slate-400 mt-0.5">请确认大模型分析模式，并启动多模态一致性匹配分析</p>
+                    </div>
+                    <button
+                      onClick={handleRemoveImportedSceneImage}
+                      className="text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 px-3 py-1.5 rounded transition-all cursor-pointer"
+                      id="btn-remove-imported-image"
+                    >
+                      重新上传
+                    </button>
+                  </div>
+
+                  {/* Image Preview & Config Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6" id="imported-image-preview-grid">
+                    {/* Image Preview */}
+                    <div className="relative aspect-[4/3] rounded-lg overflow-hidden border border-slate-200 bg-slate-50 flex items-center justify-center">
+                      {importedImageUrl ? (
+                        <img
+                          src={importedImageUrl}
+                          alt="Imported scene background"
+                          className="w-full h-full object-contain"
+                          id="imported-scene-preview-img"
+                        />
+                      ) : (
+                        <div className="text-slate-400 text-xs flex flex-col items-center gap-2">
+                          <Loader2 className="w-6 h-6 animate-spin text-slate-300" />
+                          <span>正在加载预览图...</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Controls */}
+                    <div className="flex flex-col justify-between space-y-6">
+                      <div className="space-y-4">
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-bold text-slate-700">AI 分析底座模式</label>
+                          <div className="grid grid-cols-2 gap-2" id="ai-mode-selector">
+                            <button
+                              type="button"
+                              onClick={() => setAiMode('mock')}
+                              className={`px-4 py-2.5 text-xs font-semibold rounded-lg border transition-all cursor-pointer ${
+                                aiMode === 'mock'
+                                  ? 'border-indigo-600 bg-indigo-50/50 text-indigo-700'
+                                  : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                              }`}
+                              id="btn-mode-mock"
+                            >
+                              Mock 审计 (极速)
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setAiMode('real')}
+                              className={`px-4 py-2.5 text-xs font-semibold rounded-lg border transition-all cursor-pointer ${
+                                aiMode === 'real'
+                                  ? 'border-indigo-600 bg-indigo-50/50 text-indigo-700'
+                                  : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                              }`}
+                              id="btn-mode-real"
+                            >
+                              Gemini 视觉多模态
+                            </button>
+                          </div>
+                          <p className="text-[10px] text-slate-400 leading-relaxed">
+                            {aiMode === 'mock' 
+                              ? '采用确定性的本地分析引擎进行秒级分析（支持测试产品不一致、低分修正与高分通过全套逻辑）。'
+                              : '利用多模态视觉大模型对原图及生成图进行深度物理细节对比。'}
+                          </p>
+                        </div>
+
+                        {analysisError && (
+                          <div className="p-3 bg-red-50 text-red-700 text-xs rounded-lg flex items-start gap-1.5 leading-relaxed" id="analysis-error-banner">
+                            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                            <span>{analysisError}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      <button
+                        onClick={handleStartAnalysis}
+                        className="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white font-bold text-sm rounded-xl shadow transition-all flex items-center justify-center gap-2 cursor-pointer"
+                        id="btn-start-match-analysis"
+                      >
+                        <span>开始场景匹配审计</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : state.status === 'MATCH_ANALYZING' ? (
+              <div className="bg-white p-12 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center space-y-6 text-center" id="match-analyzing-screen">
+                <div className="relative flex items-center justify-center" id="analyzing-loader-container">
+                  <div className="absolute w-16 h-16 bg-indigo-500/10 rounded-full animate-ping" />
+                  <div className="relative p-6 bg-indigo-50 rounded-full text-indigo-600" id="analyzing-icon">
+                    <Loader2 className="w-8 h-8 animate-spin" />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <h3 className="font-bold text-slate-900 text-base">正在分析产品与外部场景匹配度...</h3>
+                  <p className="text-xs text-slate-500 max-w-sm leading-relaxed mx-auto">
+                    AI 正在对导入的场景图进行多模态审计，对比产品一致性、空间透视、光源色温与构图留白。这通常需要几秒钟，请稍等。
+                  </p>
+                </div>
+              </div>
+            ) : state.status === 'MATCH_READY' ? (
+              <SceneMatchReportView
+                report={state.currentMatchReport!}
+                onBackToRecipe={handleBackToRecipe}
               />
             ) : state.status === 'AWAITING_EXTERNAL_GENERATION' ? (
               <ExternalGenerationPanel

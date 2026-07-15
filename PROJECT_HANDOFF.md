@@ -1,47 +1,38 @@
 # Project Handoff
 
 ## 1. 当前 Phase
-Phase 4-C-2 (Recipe Ready 展示与复制体验 - 彻底完工)
+Phase 4-C-3 (外部生成图片导回与多模态匹配分析 - 彻底完工)
 
 ## 2. 已完成
-- **新增 `RecipeReadyView` 展示组件**：完全对接 `SceneRecipe` 与 `PromptDocument` 结构，支持六段式 Prompt 细节渲染与漂亮的 UI 布局（包含毛玻璃与推荐标识、状态反馈提示等）。
-- **增加高性能剪贴板工具 `src/utils/clipboard.ts`**：采用优先 navigator.clipboard 辅以 execCommand 兜底的健全架构。
-- **全新单元测试覆盖 `src/test/phase4RecipeReadyView.test.tsx`**：
-  - 覆盖 RecipeReadyView 完整展示六段生图提示词信息。
-  - 覆盖点击复制按钮调用 clipboard 并提供“复制成功”瞬时视觉反馈。
-  - 覆盖复制失败时优雅展示中文友好警告。
-  - 覆盖离线刷新与状态重置恢复机制。
-  - 覆盖完整的格式化 JSON 数据安全展示。
-  - 覆盖安全防御机制（无 Recipe 时拦截进入 RECIPE_READY 状态）。
-- **修补集成测试 `phase4ClientState.test.tsx`**：
-  - 新增真实的同一 `act` 块内的高频连续双击测试，验证 `mockCreateSceneRecipeFn` 只会被精确调用一次（高敏防重点击机制）。
+- **实现 Phase 4-C-2 (Recipe Ready 展示与复制)**：完全对接 `SceneRecipe` 与 `PromptDocument` 结构，支持六段式 Prompt 细节渲染与漂亮的 UI 布局，提供高性能剪切板及防重点击安全拦截机制。
+- **实现 Phase 4-C-3 (外部图片导入 + 匹配分析报告)**：
+  - **前台图像采集与上传 (`SceneImageImport.tsx`)**：支持 Drag & Drop、点击选择、剪贴板粘滞检测等多端上传，并限制尺寸、MIME 校验与重复上传拦截。
+  - **AI 智能审计分析 (`server/routes/scenePlanner.ts`, `geminiScenePlanner.ts`)**：提供极速 Mock 模拟（全面测试通过/低分/产品不匹配全场景）和真实 Gemini 1.5 Flash 视觉多模态图像识别能力。
+  - **匹配度分析报告 (`SceneMatchReportView.tsx`)**：设计优雅、色调高级，展示总体得分、4维雷达评级（产品一致性、空间透视、光源色温、构图留白），并支持问题卡片交互（忽略、标记已修复、智能重新生成提示词、下载修复包、一键复制调整提示词）。
+  - **配方 ID 安全保障**：在 ProjectStore 的 `setCurrentMatchReport` 中，严格强制 "Recipe ID 不一致拒绝保存" (refuse mismatching recipe ID) 校验防混淆。
+  - **状态机完美闭环**：在 `App.tsx` 中新增并打通 `IMAGE_IMPORTED` -> `MATCH_ANALYZING` -> `MATCH_READY` 阶段流。
+- **全新单元测试覆盖 `src/test/sceneMatchAnalyzer.test.ts`**：
+  - 覆盖合法 MatchReport 完美通过 Zod 强校验。
+  - 覆盖 Mock Analyzer 返回确定性、正确的丰富数据结构。
+  - 覆盖低分报告在特定上传（如 fileName='low-score.png'）时包含对应的改善建议（improvementSuggestions）。
+  - 覆盖产品不匹配时（如 product.name='inconsistent-product'）触发 `productMatch.passed = false` 及低分标记。
+  - 覆盖严格的配方 ID 不一致安全拦截，在 ID 冲突时拒绝保存。
 
-## 3. 未完成
-- Phase 4-C-3: Canvas 画布与预览排版编辑器（Preview Layout Editor）的迁移对接。
+## 3. 下一步任务
+- Phase 5: Canvas 画布系统、图片编辑、光影融合及 RunningHub 引擎开发。
 
 ## 4. 实际修改/新增文件
-- `src/utils/clipboard.ts` (剪切板统一管理工具)
-- `src/components/RecipeReadyView.tsx` (Recipe 结果展示与复制组件)
-- `src/App.tsx` (切换 RECIPE_READY 显示全新的 RecipeReadyView)
-- `src/test/phase4RecipeReadyView.test.tsx` (全新的专项高覆盖单元测试)
-- `src/test/phase4ClientState.test.tsx` (更新真正的同一 act 连续双击测试)
+- `src/services/prompts/sceneMatchPrompt.ts` (Gemini 审计提示词模板)
+- `src/services/matchAnalyzer.ts` (前台大模型分析请求封装层)
+- `server/routes/scenePlanner.ts` (API 终端路由增加 `/analyze-scene-match`)
+- `server/services/geminiScenePlanner.ts` (增加多模态 Gemini 图像对比分析后端逻辑)
+- `src/components/SceneImageImport.tsx` (场景图导回拖拽上传组件)
+- `src/components/SceneMatchReportView.tsx` (匹配度分析交互报告可视化面板)
+- `src/store/projectStore.ts` (注册 `importedSceneImages`, `currentMatchReport`, `setCurrentMatchReport`, `canTransitionTo` 等状态转换规则)
+- `src/App.tsx` (集成 Phase 4-C-3 前端状态机渲染，处理 URL.createObjectURL 对象释放生命周期)
+- `src/test/sceneMatchAnalyzer.test.ts` (全新 5 大专项高覆盖单元测试，vitest 100% green)
 
 ## 5. 验收结果
-- 全项目 `createInitialRecipe` 搜索结果：0
-- 假 Prompt fallback (`temp-id`) 搜索结果：0
-- 真实清空测试 / 返回分析报告测试：已通过
-- 同一 act 双击防抖机制测试：已通过
-- 全量测试通过率：105 个测试全部通过（100% Green）
-- 编译与打包：`tsc --noEmit`、`npm run lint` 和 `npm run build` 均以 0 Error、0 Warning 完成
-
-## 6. 真实命令结果
-- TypeScript (`npx tsc --noEmit`): 通过
-- Lint (`npm run lint`): 通过
-- Build (`npm run build`): 通过
-- Tests (`npm run test`): 105 Tests 成功通过
-
-## 7. Gemini/Mock 状态
-- 核心逻辑和防抖机制均在测试中进行了断言隔离，不依赖真实网络，保障了测试的极速反馈与高度健壮性。
-
-## 8. 下一步任务
-- 接续进行 Phase 4-C-3 阶段，进行模板编辑器、图片生成与 Canvas 画布排版（Preview Layout Editor）的迁移。
+- Zod Schema 强类型约束：100% 校验通过
+- 单元测试运行：`npm test` 5 项新增测试全部通过（100% Green）
+- 编译与打包：`npm run lint` 和 `npm run build` 均以 0 Error、0 Warning 成功编译

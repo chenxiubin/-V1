@@ -371,4 +371,40 @@ router.post('/analyze-match', upload.fields([
   }
 });
 
+router.post('/analyze-scene-match', upload.fields([
+  { name: 'productImage', maxCount: 1 },
+  { name: 'sceneImage', maxCount: 1 },
+]), async (req: Request, res: Response) => {
+  try {
+    const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+    const data = JSON.parse(req.body.data);
+    const { productAsset, sceneImage, recipe, promptDocument } = data;
+
+    if (!productAsset || !sceneImage || !recipe || !promptDocument) {
+      return res.status(400).json({ code: 'MISSING_PARAMS', message: '缺少匹配度分析必要参数', retryable: false });
+    }
+
+    if (!files.productImage || !files.sceneImage) {
+      return res.status(400).json({ code: 'MISSING_IMAGES', message: '缺少产品或场景分析图片', retryable: false });
+    }
+
+    const service = req.app.get('scenePlannerService') as GeminiScenePlannerService;
+    if (!service) return res.status(500).json({ code: 'SERVICE_NOT_FOUND', message: '服务未注册', retryable: false });
+
+    const report = await service.analyzeSceneMatch({
+      productAsset,
+      sceneImage,
+      recipe,
+      promptDocument,
+      productBuffer: files.productImage[0].buffer,
+      sceneBuffer: files.sceneImage[0].buffer,
+    });
+
+    return res.status(200).json(report);
+  } catch (error: any) {
+    const { status, payload } = handleApiError(error, '分析场景匹配度时发生未知错误');
+    return res.status(status).json(payload);
+  }
+});
+
 export default router;
