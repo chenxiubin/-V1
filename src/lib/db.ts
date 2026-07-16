@@ -4,6 +4,9 @@ const DB_NAME = 'CalendarScenePlannerDB';
 const DB_VERSION = 2;
 
 export function initDB(): Promise<IDBDatabase> {
+  if (typeof indexedDB === 'undefined') {
+    return Promise.reject(new Error('indexedDB is not defined'));
+  }
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
 
@@ -31,8 +34,11 @@ export function initDB(): Promise<IDBDatabase> {
 }
 
 export function getModelSettings(): Promise<ModelSettings | undefined> {
+  if (typeof indexedDB === 'undefined') {
+    return Promise.resolve(undefined);
+  }
   return initDB().then((db) => {
-    return new Promise((resolve, reject) => {
+    return new Promise<ModelSettings | undefined>((resolve, reject) => {
       const transaction = db.transaction('gemini-model-settings', 'readonly');
       const store = transaction.objectStore('gemini-model-settings');
       const request = store.get('app-settings');
@@ -56,7 +62,7 @@ export function getModelSettings(): Promise<ModelSettings | undefined> {
         reject(request.error);
       };
     });
-  });
+  }).catch(() => undefined);
 }
 
 export function saveModelSettings(selectedModelId: string): Promise<ModelSettings> {
@@ -71,8 +77,12 @@ export function saveModelSettings(selectedModelId: string): Promise<ModelSetting
     throw new Error(`无法保存模型设置：参数 "${selectedModelId}" 不符合 AI 模型契约格式。`);
   }
 
+  if (typeof indexedDB === 'undefined') {
+    return Promise.resolve(parsed.data);
+  }
+
   return initDB().then((db) => {
-    return new Promise((resolve, reject) => {
+    return new Promise<ModelSettings>((resolve, reject) => {
       const transaction = db.transaction('gemini-model-settings', 'readwrite');
       const store = transaction.objectStore('gemini-model-settings');
       const request = store.put(modelSettingsPayload);

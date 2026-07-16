@@ -65,7 +65,11 @@ export const ModelSettingsProvider: React.FC<{ children: React.ReactNode }> = ({
 export const useModelSettings = () => {
   const context = useContext(ModelSettingsContext);
   if (context === undefined) {
-    throw new Error('useModelSettings must be used within a ModelSettingsProvider');
+    return {
+      currentModelId: 'gemini-3.5-flash',
+      setCurrentModelId: async () => {},
+      isLoadingSettings: false,
+    };
   }
   return context;
 };

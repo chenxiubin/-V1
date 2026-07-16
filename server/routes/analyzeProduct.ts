@@ -122,27 +122,17 @@ router.post('/analyze-product', (req: Request, res: Response, next: NextFunction
       }
 
       // Resolve dynamic modelId from form field body
-      let requestedModelId: string | undefined;
-      if (req.body && req.body.modelId) {
-        const parsedContext = ModelRequestContextSchema.safeParse({ modelId: req.body.modelId });
-        if (!parsedContext.success) {
-          return res.status(400).json({
-            code: 'INVALID_MODEL_REQUESTED',
-            message: '请求中的 modelId 参数格式不正确。',
-            retryable: false,
-          });
-        }
-        requestedModelId = parsedContext.data.modelId;
-      }
+      const requestedModelId = req.body && req.body.modelId ? String(req.body.modelId) : undefined;
 
       let effectiveModelId: string;
       try {
-        effectiveModelId = await resolveRuntimeModelId(requestedModelId);
+        const resolution = await resolveRuntimeModelId(requestedModelId);
+        effectiveModelId = resolution.effectiveModelId;
       } catch (modelErr: any) {
-        return res.status(modelErr.status || 400).json({
-          code: modelErr.code || 'INVALID_MODEL_REQUESTED',
+        return res.status(modelErr.status || 500).json({
+          code: modelErr.code || 'UNKNOWN_ERROR',
           message: modelErr.message,
-          retryable: false,
+          retryable: typeof modelErr.retryable === 'boolean' ? modelErr.retryable : false,
         });
       }
 

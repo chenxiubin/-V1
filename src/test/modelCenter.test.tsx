@@ -5,6 +5,8 @@ import { render, screen, fireEvent, act, cleanup } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ModelCenterPanel } from '../components/ModelCenterPanel';
 import { ModelDiscoveryClient } from '../services/modelDiscoveryClient';
+import { getModelSettings, saveModelSettings } from '../lib/db';
+import { ModelSettingsProvider } from '../context/ModelSettingsContext';
 import App from '../App';
 
 vi.mock('../lib/db', () => ({
@@ -15,7 +17,9 @@ vi.mock('../lib/db', () => ({
   deleteProject: vi.fn(),
   getAsset: vi.fn().mockResolvedValue(null),
   saveAsset: vi.fn(),
-  deleteAsset: vi.fn()
+  deleteAsset: vi.fn(),
+  getModelSettings: vi.fn().mockResolvedValue(null),
+  saveModelSettings: vi.fn().mockResolvedValue({ selectedModelId: 'gemini-3.5-flash', updatedAt: '2026-07-15T20:00:00Z' })
 }));
 
 const mockSuccessResponse = {
@@ -78,6 +82,8 @@ describe('ModelCenter Integration', () => {
 
   beforeEach(async () => {
     vi.resetAllMocks();
+    (getModelSettings as any).mockResolvedValue(null);
+    (saveModelSettings as any).mockResolvedValue({ selectedModelId: 'gemini-3.5-flash', updatedAt: '2026-07-15T20:00:00Z' });
     cleanupNetworkIsolation = setupNetworkIsolation();
     ModelDiscoveryClient.clearCacheForTests();
     fetchModelsSpy = vi.spyOn(ModelDiscoveryClient, 'fetchModels');
@@ -222,7 +228,11 @@ describe('ModelCenter Integration', () => {
     fetchModelsSpy.mockResolvedValue(mockSuccessResponse);
     
     await act(async () => {
-      render(<App />);
+      render(
+        <ModelSettingsProvider>
+          <App />
+        </ModelSettingsProvider>
+      );
     });
     
     // 1. App 顶部只有一个当前模型按钮
@@ -264,7 +274,11 @@ describe('ModelCenter Integration', () => {
     fetchModelsSpy.mockRestore();
 
     await act(async () => {
-      render(<App />);
+      render(
+        <ModelSettingsProvider>
+          <App />
+        </ModelSettingsProvider>
+      );
     });
 
     const modelButtons = screen.getAllByText(/当前模型:/);

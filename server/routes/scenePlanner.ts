@@ -72,27 +72,17 @@ router.post('/guided-questions', async (req: Request, res: Response) => {
     }
 
     // Resolve dynamic modelId
-    let requestedModelId: string | undefined;
-    if (req.body && req.body.modelId) {
-      const parsedContext = ModelRequestContextSchema.safeParse({ modelId: req.body.modelId });
-      if (!parsedContext.success) {
-        return res.status(400).json({
-          code: 'INVALID_MODEL_REQUESTED',
-          message: '请求中的 modelId 参数格式不正确。',
-          retryable: false
-        });
-      }
-      requestedModelId = parsedContext.data.modelId;
-    }
+    const requestedModelId = req.body && req.body.modelId ? String(req.body.modelId) : undefined;
 
     let effectiveModelId: string;
     try {
-      effectiveModelId = await resolveRuntimeModelId(requestedModelId);
+      const resolution = await resolveRuntimeModelId(requestedModelId);
+      effectiveModelId = resolution.effectiveModelId;
     } catch (modelErr: any) {
-      return res.status(modelErr.status || 400).json({
-        code: modelErr.code || 'INVALID_MODEL_REQUESTED',
+      return res.status(modelErr.status || 500).json({
+        code: modelErr.code || 'UNKNOWN_ERROR',
         message: modelErr.message,
-        retryable: false
+        retryable: typeof modelErr.retryable === 'boolean' ? modelErr.retryable : false
       });
     }
 
@@ -155,27 +145,17 @@ router.post('/scene-directions', async (req: Request, res: Response) => {
     }
 
     // Resolve dynamic modelId
-    let requestedModelId: string | undefined;
-    if (req.body && req.body.modelId) {
-      const parsedContext = ModelRequestContextSchema.safeParse({ modelId: req.body.modelId });
-      if (!parsedContext.success) {
-        return res.status(400).json({
-          code: 'INVALID_MODEL_REQUESTED',
-          message: '请求中的 modelId 参数格式不正确。',
-          retryable: false
-        });
-      }
-      requestedModelId = parsedContext.data.modelId;
-    }
+    const requestedModelId = req.body && req.body.modelId ? String(req.body.modelId) : undefined;
 
     let effectiveModelId: string;
     try {
-      effectiveModelId = await resolveRuntimeModelId(requestedModelId);
+      const resolution = await resolveRuntimeModelId(requestedModelId);
+      effectiveModelId = resolution.effectiveModelId;
     } catch (modelErr: any) {
-      return res.status(modelErr.status || 400).json({
-        code: modelErr.code || 'INVALID_MODEL_REQUESTED',
+      return res.status(modelErr.status || 500).json({
+        code: modelErr.code || 'UNKNOWN_ERROR',
         message: modelErr.message,
-        retryable: false
+        retryable: typeof modelErr.retryable === 'boolean' ? modelErr.retryable : false
       });
     }
 
@@ -356,27 +336,17 @@ router.post('/scene-recipe', async (req: Request, res: Response) => {
     if (!service) return res.status(500).json({ code: 'SERVICE_NOT_FOUND', message: '服务未注册', retryable: false });
 
     // Resolve dynamic modelId
-    let requestedModelId: string | undefined;
-    if (req.body && req.body.modelId) {
-      const parsedContext = ModelRequestContextSchema.safeParse({ modelId: req.body.modelId });
-      if (!parsedContext.success) {
-        return res.status(400).json({
-          code: 'INVALID_MODEL_REQUESTED',
-          message: '请求中的 modelId 参数格式不正确。',
-          retryable: false
-        });
-      }
-      requestedModelId = parsedContext.data.modelId;
-    }
+    const requestedModelId = req.body && req.body.modelId ? String(req.body.modelId) : undefined;
 
     let effectiveModelId: string;
     try {
-      effectiveModelId = await resolveRuntimeModelId(requestedModelId);
+      const resolution = await resolveRuntimeModelId(requestedModelId);
+      effectiveModelId = resolution.effectiveModelId;
     } catch (modelErr: any) {
-      return res.status(modelErr.status || 400).json({
-        code: modelErr.code || 'INVALID_MODEL_REQUESTED',
+      return res.status(modelErr.status || 500).json({
+        code: modelErr.code || 'UNKNOWN_ERROR',
         message: modelErr.message,
-        retryable: false
+        retryable: typeof modelErr.retryable === 'boolean' ? modelErr.retryable : false
       });
     }
 
@@ -441,30 +411,20 @@ router.post('/analyze-match', upload.fields([
     if (!service) return res.status(500).json({ code: 'SERVICE_NOT_FOUND', message: '服务未注册', retryable: false });
 
     // Resolve dynamic modelId
-    let requestedModelId: string | undefined;
     const bodyModelId = req.body && req.body.modelId;
     const dataModelId = data && data.modelId;
     const candidateModelId = bodyModelId || dataModelId;
-    if (candidateModelId) {
-      const parsedContext = ModelRequestContextSchema.safeParse({ modelId: candidateModelId });
-      if (!parsedContext.success) {
-        return res.status(400).json({
-          code: 'INVALID_MODEL_REQUESTED',
-          message: '请求中的 modelId 参数格式不正确。',
-          retryable: false
-        });
-      }
-      requestedModelId = parsedContext.data.modelId;
-    }
+    const requestedModelId = candidateModelId ? String(candidateModelId) : undefined;
 
     let effectiveModelId: string;
     try {
-      effectiveModelId = await resolveRuntimeModelId(requestedModelId);
+      const resolution = await resolveRuntimeModelId(requestedModelId);
+      effectiveModelId = resolution.effectiveModelId;
     } catch (modelErr: any) {
-      return res.status(modelErr.status || 400).json({
-        code: modelErr.code || 'INVALID_MODEL_REQUESTED',
+      return res.status(modelErr.status || 500).json({
+        code: modelErr.code || 'UNKNOWN_ERROR',
         message: modelErr.message,
-        retryable: false
+        retryable: typeof modelErr.retryable === 'boolean' ? modelErr.retryable : false
       });
     }
 
