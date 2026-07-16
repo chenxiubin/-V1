@@ -1,10 +1,10 @@
-import { ModelDiscoveryClient } from '../services/modelDiscoveryClient';
-import { setupNetworkIsolation } from "./networkIsolation";
 // @vitest-environment happy-dom
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { setupNetworkIsolation } from './networkIsolation';
 import React from 'react';
-import { render, screen, act, cleanup } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, act, cleanup, fireEvent, waitFor } from '@testing-library/react';
 import App from '../App';
+import { ModelDiscoveryClient } from '../services/modelDiscoveryClient';
 
 vi.mock('../lib/db', () => ({
   initDB: vi.fn().mockResolvedValue(true),
@@ -17,53 +17,131 @@ vi.mock('../lib/db', () => ({
   deleteAsset: vi.fn()
 }));
 
-// We DO NOT mock ModelDiscoveryClient here so we can test the real fetch call.
+describe('Network Isolation', () => {
+  let teardown: () => void;
 
-describe('Network Isolation Real Fetch Assertion', () => {
-  let cleanupNetworkIsolation: (() => void) | null = null;
-  beforeEach(async () => {
+  beforeEach(() => {
     vi.resetAllMocks();
-    cleanupNetworkIsolation = setupNetworkIsolation();
+    teardown = setupNetworkIsolation();
+  });
+
+  afterEach(() => {
+    teardown();
+  });
+
+  it('1. health 相对 URL', async () => {
+    const res = await fetch('/api/health');
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.ok).toBe(true);
+  });
+
+  it('2. models 相对 URL', async () => {
+    const res = await fetch('/api/ai/models');
+    expect(res.status).toBe(200);
+  });
+
+  it('3. refresh=true', async () => {
+    const res = await fetch('/api/ai/models?refresh=true');
+    expect(res.status).toBe(200);
+  });
+
+  it('4. localhost 绝对 URL', async () => {
+    const res = await fetch('http://localhost:3000/api/health');
+    expect(res.status).toBe(200);
+  });
+
+  it('5. 127.0.0.1 绝对 URL', async () => {
+    const res = await fetch('http://127.0.0.1:3000/api/health');
+    expect(res.status).toBe(200);
+  });
+
+  it('6. 未识别 URL 抛错', async () => {
+    await expect(fetch('http://example.com/api/data')).rejects.toThrow('Unmocked network request: http://example.com/api/data');
+    await expect(fetch('/api/unknown')).rejects.toThrow('Unmocked network request: /api/unknown');
+    await expect(fetch('/api/ai/models?foo=bar')).rejects.toThrow('Unmocked network request: /api/ai/models?foo=bar');
+  });
+
+  it('7. teardown 恢复原始 fetch', async () => {
+    const originalFetch = globalThis.fetch;
+    teardown();
+    expect(globalThis.fetch).not.toBe(originalFetch);
+    teardown = setupNetworkIsolation(); 
+  });
+  
+  it('8. 连续 setup/teardown 不污染', async () => {
+    teardown();
+    
+    const originalFetch = globalThis.fetch;
+    
+    const localTeardown1 = setupNetworkIsolation();
+    expect(globalThis.fetch).not.toBe(originalFetch);
+    localTeardown1();
+    expect(globalThis.fetch).toBe(originalFetch);
+    
+    const localTeardown2 = setupNetworkIsolation();
+    expect(globalThis.fetch).not.toBe(originalFetch);
+    localTeardown2();
+    expect(globalThis.fetch).toBe(originalFetch);
+    
+    teardown = setupNetworkIsolation();
+  });
+});
+
+describe('App Network Isolation & UI Interaction', () => {
+  let teardown: () => void;
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+    teardown = setupNetworkIsolation();
     ModelDiscoveryClient.clearCacheForTests();
   });
 
   afterEach(() => {
-    cleanupNetworkIsolation?.();
-    cleanupNetworkIsolation = null;
+    teardown();
     cleanup();
   });
 
-  it('App directly renders and network is completely isolated', async () => {
+  it('9-13 App 交互过程的网络隔离精确验证', async () => {
+    const fetchSpy = globalThis.fetch as any;
+    
     await act(async () => {
       render(<App />);
     });
-
-    const fetchCalls = (global.fetch as any).mock.calls;
     
-    let healthCalls = 0;
-    let modelsCalls = 0;
-    let otherCalls = 0;
+    let initialModelsCalls = fetchSpy.mock.calls.filter((c: any) => c[0].includes('/api/ai/models'));
+    expect(initialModelsCalls.length).toBe(1);
 
-    for (const call of fetchCalls) {
-      const url = call[0].toString();
-      if (url.includes('/api/health')) healthCalls++;
-      else if (url.includes('/api/ai/models')) modelsCalls++;
-      else otherCalls++;
-      
-      expect(url).not.toContain('localhost');
-      expect(url).not.toContain('127.0.0.1');
-      expect(url).not.toContain('http://');
-      expect(url).not.toContain('https://');
-    }
+    const modelBadge = await screen.findByText(/当前模型/);
+    await act(async () => {
+      fireEvent.click(modelBadge);
+    });
 
-    expect(healthCalls).toBe(1);
-    expect(modelsCalls).toBe(1);
-    expect(otherCalls).toBe(0);
+    let modelsCallsAfterOpen = fetchSpy.mock.calls.filter((c: any) => c[0].includes('/api/ai/models'));
+    expect(modelsCallsAfterOpen.length).toBe(1);
 
-    expect(screen.getByText(/当前模型: gemini-3.5-flash/)).toBeDefined();
-  });
+    await waitFor(() => {
+      const dialogs = screen.queryAllByRole('dialog');
+      expect(dialogs.length).toBe(1);
+    });
 
-  it('throws on unmocked network request', async () => {
-    await expect(globalThis.fetch('/api/not-mocked')).rejects.toThrow('Unmocked network request: /api/not-mocked');
+    const refreshBtn = await screen.findByText('刷新列表');
+    await act(async () => {
+      fireEvent.click(refreshBtn);
+    });
+    
+    let refreshCalls = fetchSpy.mock.calls.filter((c: any) => c[0].includes('refresh=true'));
+    expect(refreshCalls.length).toBe(1);
+    
+    let modelsCallsAfterRefresh = fetchSpy.mock.calls.filter((c: any) => c[0].includes('/api/ai/models'));
+    expect(modelsCallsAfterRefresh.length).toBe(2);
+
+    const closeBtn = await screen.findByLabelText('关闭模型中心');
+    await act(async () => {
+      fireEvent.click(closeBtn);
+    });
+    
+    let modelsCallsAfterClose = fetchSpy.mock.calls.filter((c: any) => c[0].includes('/api/ai/models'));
+    expect(modelsCallsAfterClose.length).toBe(2);
   });
 });

@@ -1,12 +1,39 @@
-
 import { vi } from 'vitest';
 import type { ModelDiscoveryResult } from '../../server/services/geminiModelDiscovery.js';
 
 export function setupNetworkIsolation(): () => void {
-  const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
-    let url = typeof input === 'string' ? input : (input as Request).url || input.toString();
+  const originalFetch = globalThis.fetch;
 
-    if (url.includes('/api/ai/models')) {
+  const mockFetch = vi.fn().mockImplementation(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    let rawUrl = '';
+    if (typeof input === 'string') {
+      rawUrl = input;
+    } else if (input instanceof Request) {
+      rawUrl = input.url;
+    } else {
+      rawUrl = input.toString();
+    }
+
+    const urlObj = new URL(rawUrl, 'http://localhost');
+    const path = urlObj.pathname;
+    const search = urlObj.search;
+
+    if (urlObj.hostname !== 'localhost' && urlObj.hostname !== '127.0.0.1') {
+       throw new Error(`Unmocked network request: ${rawUrl}`);
+    }
+
+    if (path === '/api/health') {
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    
+    if (path === '/api/ai/models') {
+      if (search !== '' && search !== '?refresh=true') {
+        throw new Error(`Unmocked network request: ${rawUrl}`);
+      }
+
       const mockResult: ModelDiscoveryResult = {
         models: [
           {
@@ -44,17 +71,11 @@ export function setupNetworkIsolation(): () => void {
       });
     }
 
-    if (url.includes('/api/health')) {
-      return new Response(JSON.stringify({ ok: true }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-
-    throw new Error(`Unmocked network request: ${url}`);
+    throw new Error(`Unmocked network request: ${rawUrl}`);
   });
 
-  // Mock IndexedDB globally if needed
+  globalThis.fetch = mockFetch as any;
+
   if (typeof window !== 'undefined' && !(window as any).indexedDB) {
     (window as any).indexedDB = {
       open: vi.fn().mockReturnValue({
@@ -74,6 +95,6 @@ export function setupNetworkIsolation(): () => void {
   }
 
   return () => {
-    fetchSpy.mockRestore();
+    globalThis.fetch = originalFetch;
   };
 }

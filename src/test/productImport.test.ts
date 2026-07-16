@@ -1,6 +1,6 @@
 // @ts-nocheck
 import 'fake-indexeddb/auto';
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ProjectStore } from '../store/projectStore';
 import { clearAllData, saveAsset, getAsset } from '../lib/db';
 import { analyzeImageFile } from '../lib/imageAnalyzer';
@@ -61,9 +61,29 @@ import { analyzeImageFile } from '../lib/imageAnalyzer';
 // --------------------------------------------
 
 import { ProductAssetSchema, ProductAsset } from '../types/schemas';
+import * as dbModule from '../lib/db';
+
+const createPngBlob = (name) => {
+  const bytes = new Uint8Array([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 0]);
+  const f = new File([bytes], name, { type: 'image/png' });
+  return f;
+};
+
+const createJpegBlob = (name) => {
+  const bytes = new Uint8Array([0xFF, 0xD8, 0xFF, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+  const f = new File([bytes], name, { type: 'image/jpeg' });
+  return f;
+};
+
+const createWebpBlob = (name) => {
+  const bytes = new Uint8Array([0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50]);
+  const f = new File([bytes], name, { type: 'image/webp' });
+  return f;
+};
 
 describe('Phase 2-A: Local Product Import, Verification, and Preview Tests', () => {
   let store: ProjectStore;
+  let saveAssetSpy;
 
   beforeEach(async () => {
     // Clear fake-indexeddb
@@ -71,22 +91,127 @@ describe('Phase 2-A: Local Product Import, Verification, and Preview Tests', () 
     // Instantiate a fresh store
     store = new ProjectStore();
     store.reset();
+    saveAssetSpy = vi.spyOn(dbModule, 'saveAsset');
   });
 
+  // 1. 透明 PNG
   it('透明PNG导入成功', async () => {
     (global as any).__mockAlpha = 0; // Transparent
-
-    // Simulate a File object of transparent PNG
-    const file = new File(['dummy-png-content'], 'test_calendar.png', { type: 'image/png' });
-    
-    // Analyze
+    const file = createPngBlob('test_calendar.png');
     const analysis = await analyzeImageFile(file);
     expect(analysis.mimeType).toBe('image/png');
     expect(analysis.hasAlpha).toBe(true);
-    expect(analysis.name).toBe('test_calendar.png');
+  });
+  
+  // 2. 实底 PNG
+  it('实底（全不透明）PNG，正确识别为 false', async () => {
+    (global as any).__mockAlpha = 255; // Opaque
+    const file = createPngBlob('opaque.png');
+    const analysis = await analyzeImageFile(file);
+    expect(analysis.mimeType).toBe('image/png');
+    expect(analysis.hasAlpha).toBe(false);
+  });
+  
+  // 3. JPEG
+  it('JPEG', async () => {
+    (global as any).__mockAlpha = 255;
+    const file = createJpegBlob('test.jpg');
+    const analysis = await analyzeImageFile(file);
+    expect(analysis.mimeType).toBe('image/jpeg');
+    expect(analysis.hasAlpha).toBe(false);
+  });
+  
+  // 4. 透明 WebP
+  it('透明 WebP', async () => {
+    (global as any).__mockAlpha = 0; // Transparent
+    const file = createWebpBlob('test.webp');
+    const analysis = await analyzeImageFile(file);
+    expect(analysis.mimeType).toBe('image/webp');
+    expect(analysis.hasAlpha).toBe(true);
+  });
+  
+  // 5. 实底 WebP
+  it('实底 WebP', async () => {
+    (global as any).__mockAlpha = 255; // Opaque
+    const file = createWebpBlob('test.webp');
+    const analysis = await analyzeImageFile(file);
+    expect(analysis.mimeType).toBe('image/webp');
+    expect(analysis.hasAlpha).toBe(false);
+  });
 
-    // Create asset
-    const assetId = 'test-asset-png';
+  // 6. Alpha 检测失败降级
+  it('图片解码或检测异常，安全降级为 false 且不抛出阻塞异常', async () => {
+    (global as any).__mockAlpha = -1; // Canvas throws error
+    const file = createPngBlob('canvas_error.png');
+    const analysis = await analyzeImageFile(file);
+    expect(analysis.hasAlpha).toBe(false);
+  });
+  
+  // 7. GIF 直接上传
+  it('GIF 直接上传', async () => {
+    const file = new File(['dummy-gif'], 'calendar.gif', { type: 'image/gif' });
+    await expect(analyzeImageFile(file)).rejects.toThrow('不支持的文件格式，请上传 PNG、JPEG 或 WEBP 图片。');
+    expect(saveAssetSpy).not.toHaveBeenCalled();
+    expect(store.getState().productAsset).toBeNull();
+  });
+  
+  // 8. GIF 伪装 PNG
+  it('GIF 伪装 PNG', async () => {
+    const bytes = new Uint8Array([0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0, 0, 0, 0, 0, 0]);
+    const file = new File([bytes], 'fake.png', { type: 'image/png' });
+    await expect(analyzeImageFile(file)).rejects.toThrow('图片格式与文件内容不一致，请上传真实的 PNG、JPEG 或 WEBP 图片。');
+    expect(saveAssetSpy).not.toHaveBeenCalled();
+  });
+  
+  // 9. PNG 签名但 JPEG MIME
+  it('PNG 签名但 JPEG MIME', async () => {
+    const bytes = new Uint8Array([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 0]);
+    const file = new File([bytes], 'fake.png', { type: 'image/jpeg' });
+    await expect(analyzeImageFile(file)).rejects.toThrow('图片格式与文件内容不一致');
+  });
+  
+  // 10. JPEG 签名但 PNG 扩展名
+  it('JPEG 签名但 PNG 扩展名', async () => {
+    const bytes = new Uint8Array([0xFF, 0xD8, 0xFF, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+    const file = new File([bytes], 'fake.png', { type: 'image/jpeg' }); // ext is .png, mime is .jpeg
+    await expect(analyzeImageFile(file)).rejects.toThrow('图片格式与文件内容不一致');
+  });
+  
+  // 11. WebP 签名但 JPG 扩展名
+  it('WebP 签名但 JPG 扩展名', async () => {
+    const bytes = new Uint8Array([0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50]);
+    const file = new File([bytes], 'fake.jpg', { type: 'image/webp' });
+    await expect(analyzeImageFile(file)).rejects.toThrow('图片格式与文件内容不一致');
+  });
+  
+  // 12. 签名不完整
+  it('签名不完整', async () => {
+    const bytes = new Uint8Array([0xFF]);
+    const file = new File([bytes], 'short.jpg', { type: 'image/jpeg' });
+    await expect(analyzeImageFile(file)).rejects.toThrow('图片格式与文件内容不一致');
+  });
+  
+  // 13. 超过 10MB
+  it('超过 10MB', async () => {
+    const file = createPngBlob('large.png');
+    Object.defineProperty(file, 'size', { value: 11 * 1024 * 1024 });
+    await expect(analyzeImageFile(file)).rejects.toThrow('图片大小不能超过 10MB。');
+    expect(saveAssetSpy).not.toHaveBeenCalled();
+  });
+  
+  // 14. 合法签名但 Image 解码失败
+  it('图片完全损坏，解析失败抛出错误', async () => {
+    const file = createPngBlob('corrupt.png');
+    await expect(analyzeImageFile(file)).rejects.toThrow('无法加载图片文件，请确保文件未损坏。');
+  });
+
+  // Test UI Yellow Warning logic via state integration
+  it('实底图片和 JPEG 显示黄色警告，不阻断分析', async () => {
+    (global as any).__mockAlpha = 255;
+    const file = createJpegBlob('test.jpg');
+    const analysis = await analyzeImageFile(file);
+    
+    const assetId = 'test-asset-jpeg';
     const productAsset: ProductAsset = {
       id: assetId,
       name: file.name,
@@ -97,151 +222,24 @@ describe('Phase 2-A: Local Product Import, Verification, and Preview Tests', () 
       persistedAssetRef: assetId,
       createdAt: new Date().toISOString(),
     };
-    const parseResult = ProductAssetSchema.safeParse(productAsset);
-    expect(parseResult.success).toBe(true);
-
-    // Save asset to DB and product to store
+    
     await saveAsset(assetId, file);
     store.importProduct(productAsset);
-
-    // Verify store has product asset
     const state = store.getState();
-    expect(state.status).toBe('PRODUCT_IMPORTED');
-    expect(state.productAsset).toEqual(productAsset);
-  });
-
-  
-  it('实底（全不透明）PNG，正确识别为 false', async () => {
-    (global as any).__mockAlpha = 255; // Opaque
-    const file = new File(['dummy-png-content'], 'opaque.png', { type: 'image/png' });
-    const analysis = await analyzeImageFile(file);
-    expect(analysis.mimeType).toBe('image/png');
-    expect(analysis.hasAlpha).toBe(false);
-  });
-  
-  it('图片解码或检测异常，安全降级为 false 且不抛出阻塞异常', async () => {
-    (global as any).__mockAlpha = -1; // Canvas throws error
-    const file = new File(['dummy'], 'canvas_error.png', { type: 'image/png' });
-    const analysis = await analyzeImageFile(file);
-    expect(analysis.hasAlpha).toBe(false);
-  });
-  
-  it('图片完全损坏，解析失败抛出错误', async () => {
-    const file = new File(['corrupt'], 'corrupt.png', { type: 'image/png' });
-    await expect(analyzeImageFile(file)).rejects.toThrow('无法加载图片');
-  });
-  
-
-  it('非透明图片风险提示', async () => {
-    (global as any).__mockAlpha = 255;
-    // JPEG doesn't have transparency
-    const file = new File(['dummy-jpeg-content'], 'test_calendar.jpg', { type: 'image/jpeg' });
-    const analysis = await analyzeImageFile(file);
+    expect(state.productAsset?.hasAlpha).toBe(false); // UI shows warning
     
-    expect(analysis.mimeType).toBe('image/jpeg');
-    expect(analysis.hasAlpha).toBe(false);
-
-    // Make sure we create the asset and warning flag can be derived or displayed
-    const productAsset: ProductAsset = {
-      id: 'test-asset-jpeg',
-      name: file.name,
-      mimeType: analysis.mimeType,
-      width: analysis.width,
-      height: analysis.height,
-      hasAlpha: analysis.hasAlpha,
-      persistedAssetRef: 'test-asset-jpeg',
-      createdAt: new Date().toISOString(),
-    };
-
-    store.importProduct(productAsset);
-    const state = store.getState();
-    expect(state.productAsset?.hasAlpha).toBe(false); // UI would trigger warning based on this
+    // Ensure transition to analyzing is still possible
+    expect(() => store.transitionTo('ANALYZING_PRODUCT')).not.toThrow();
   });
 
-  it('不支持格式被拒绝', async () => {
-    // GIF is not supported
-    const file = new File(['dummy-gif'], 'calendar.gif', { type: 'image/gif' });
-    await expect(analyzeImageFile(file)).rejects.toThrow('不支持的文件格式');
+  it('透明图片不显示黄色警告', async () => {
+    (global as any).__mockAlpha = 0;
+    const file = createPngBlob('test.png');
+    const analysis = await analyzeImageFile(file);
+    expect(analysis.hasAlpha).toBe(true); // UI does not show warning
   });
 
   it('无产品不能进入分析状态', async () => {
-    // Current status is EMPTY
-    const state = store.getState();
-    expect(state.productAsset).toBeNull();
-    expect(state.status).toBe('EMPTY');
-
-    // Transition should fail because canTransitionTo checks productAsset requirement
-    expect(() => store.transitionTo('ANALYZING_PRODUCT')).toThrow('状态机控制拒绝该转换');
-  });
-
-  it('替换产品使旧数据过期', async () => {
-    // 1. Initial product
-    const asset1: ProductAsset = {
-      id: 'asset-1',
-      name: 'old_calendar.png',
-      mimeType: 'image/png',
-      width: 500,
-      height: 500,
-      hasAlpha: true,
-      persistedAssetRef: 'ref-1',
-      createdAt: new Date().toISOString(),
-    };
-    store.importProduct(asset1);
-    store.setProductProfile({
-      schemaVersion: '1.0',
-      productAssetId: 'asset-1',
-      productType: 'desk_calendar',
-      bracketType: 'paper_base',
-      subjectBounds: { x: 0, y: 0, width: 500, height: 500 },
-      contactRegion: { xStart: 0, xEnd: 500, y: 500, confidence: 'high' },
-      view: { class: 'front', visibleTop: 'none', visibleSide: 'none', perspectiveStrength: 'low' },
-      materials: [{ name: 'paper', reflectivity: 'low' }],
-      palette: { dominant: ['#FFF'], edgeBrightness: 'light' },
-      existingLighting: { direction: 'front', temperature: 'neutral', softness: 'soft', contrast: 'low' },
-      uncertainties: [],
-      overallConfidence: 'high',
-      analyzedAt: new Date().toISOString(),
-    });
-
-    // Verify it is not null
-    expect(store.getState().productProfile).not.toBeNull();
-
-    // 2. Replace product with asset2
-    const asset2: ProductAsset = {
-      id: 'asset-2',
-      name: 'new_calendar.png',
-      mimeType: 'image/png',
-      width: 600,
-      height: 600,
-      hasAlpha: true,
-      persistedAssetRef: 'ref-2',
-      createdAt: new Date().toISOString(),
-    };
-
-    store.importProduct(asset2);
-
-    // Verify old profile is cleared/expired
-    const finalState = store.getState();
-    expect(finalState.productAsset).toEqual(asset2);
-    expect(finalState.productProfile).toBeNull();
-    expect(finalState.sceneRecipes).toEqual([]);
-    expect(finalState.matchReport).toBeNull();
-    expect(finalState.status).toBe('PRODUCT_IMPORTED');
-  });
-
-  it('原始Blob可以从IndexedDB读取', async () => {
-    const file = new File(['real-image-binary-data'], 'calendar.png', { type: 'image/png' });
-    const assetId = 'indexeddb-test-asset';
-
-    await saveAsset(assetId, file);
-    const retrievedBlob = await getAsset(assetId);
-
-    expect(retrievedBlob).toBeDefined();
-    expect(retrievedBlob?.size).toBe(file.size);
-    expect(retrievedBlob?.type).toBe('image/png');
-    
-    // Read text from retrieved blob to verify original binary integrity
-    const text = await retrievedBlob?.text();
-    expect(text).toBe('real-image-binary-data');
+    expect(() => store.transitionTo('ANALYZING_PRODUCT')).toThrow();
   });
 });

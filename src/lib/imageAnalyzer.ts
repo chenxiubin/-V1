@@ -10,21 +10,55 @@ export interface ImageAnalysis {
 }
 
 export function analyzeImageFile(file: File | Blob): Promise<ImageAnalysis> {
-  return new Promise((resolve, reject) => {
+  return new Promise(async (resolve, reject) => {
+    if (file.size > 10 * 1024 * 1024) {
+      reject(new Error('图片大小不能超过 10MB。'));
+      return;
+    }
+
     let mimeType: 'image/png' | 'image/jpeg' | 'image/webp';
     const type = file.type;
     const name = (file as any).name || 'unknown_file';
 
-    if (type === 'image/png' || name.endsWith('.png')) {
-      mimeType = 'image/png';
-    } else if (type === 'image/jpeg' || type === 'image/jpg' || name.endsWith('.jpg') || name.endsWith('.jpeg')) {
-      mimeType = 'image/jpeg';
-    } else if (type === 'image/webp' || name.endsWith('.webp')) {
-      mimeType = 'image/webp';
-    } else {
-      reject(new Error('不支持的文件格式！仅支持 PNG、JPEG、WebP 格式的图片。'));
+    let extMime = '';
+    const lowerName = name.toLowerCase();
+    if (lowerName.endsWith('.png')) extMime = 'image/png';
+    else if (lowerName.endsWith('.jpg') || lowerName.endsWith('.jpeg')) extMime = 'image/jpeg';
+    else if (lowerName.endsWith('.webp')) extMime = 'image/webp';
+
+    // Magic number check
+    let magicMime = '';
+    try {
+      const headerBlob = file.slice(0, 12);
+      const buffer = await headerBlob.arrayBuffer();
+      const view = new Uint8Array(buffer);
+      
+      if (view.length >= 8 && view[0] === 0x89 && view[1] === 0x50 && view[2] === 0x4E && view[3] === 0x47 &&
+          view[4] === 0x0D && view[5] === 0x0A && view[6] === 0x1A && view[7] === 0x0A) {
+        magicMime = 'image/png';
+      } else if (view.length >= 3 && view[0] === 0xFF && view[1] === 0xD8 && view[2] === 0xFF) {
+        magicMime = 'image/jpeg';
+      } else if (view.length >= 12 && 
+                 view[0] === 0x52 && view[1] === 0x49 && view[2] === 0x46 && view[3] === 0x46 && // RIFF
+                 view[8] === 0x57 && view[9] === 0x45 && view[10] === 0x42 && view[11] === 0x50) { // WEBP
+        magicMime = 'image/webp';
+      }
+    } catch (e) {
+      // ignore
+    }
+
+    if (!magicMime || !extMime || !type || type !== extMime || type !== magicMime) {
+      // If it doesn't even have a valid extension or type, it's completely unsupported
+      if (!extMime || !type) {
+         reject(new Error('不支持的文件格式，请上传 PNG、JPEG 或 WEBP 图片。'));
+         return;
+      }
+      // If it has valid extension and type but magic number doesn't match or is missing
+      reject(new Error('图片格式与文件内容不一致，请上传真实的 PNG、JPEG 或 WEBP 图片。'));
       return;
     }
+
+    mimeType = magicMime as 'image/png' | 'image/jpeg' | 'image/webp';
 
     const img = new Image();
     let url: string;
