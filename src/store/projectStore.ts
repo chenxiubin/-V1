@@ -19,6 +19,8 @@ import {
   RenderSnapshot,
   RenderSnapshotSchema
 } from '../types/schemas';
+
+const formatZodError = (error: any) => error.errors ? error.errors.map((e: any) => `${e.path.join('.')}: ${e.message}`).join(', ') : error.message;
 import { RealAdapter } from '../services/ai/realAdapter';
 import { validateGuidedAnswerCoverage, validateSceneDirectionSet, getSafeRecoveryState } from './phase3StateValidation';
 import { saveProject, getProject } from '../lib/db';
@@ -45,7 +47,7 @@ export class ProjectStore {
       if (parsed.success) {
         this.state = parsed.data;
       } else {
-        console.warn('Initial project state invalid even after sanitization, using empty state:', parsed.error.message);
+        console.warn('Initial project state invalid even after sanitization, using empty state:', formatZodError(parsed.error));
         this.state = this.getEmptyState();
       }
     } else {
@@ -269,8 +271,7 @@ export class ProjectStore {
     // 1. Validate Zod Contract Schema
     const parsed = ProjectStateSchema.safeParse(candidateState);
     if (!parsed.success) {
-      console.log("CANDIDATE STATE WAS:", JSON.stringify(candidateState));
-      throw new Error(`Zod 校验未通过: ${parsed.error.message}`);
+      throw new Error(`Zod 校验未通过: ${formatZodError(parsed.error)}`);
     }
 
     // 2. Validate State Machine Transition Constraints
@@ -959,7 +960,7 @@ export class ProjectStore {
     // Validate using RenderSnapshotSchema
     const parseCheck = RenderSnapshotSchema.safeParse(snapshot);
     if (!parseCheck.success) {
-      throw new Error(`渲染快照 Zod 校验失败: ${parseCheck.error.message}`);
+      throw new Error(`渲染快照 Zod 校验失败: ${formatZodError(parseCheck.error)}`);
     }
 
     this.updateState((s) => ({
@@ -980,7 +981,7 @@ export class ProjectStore {
   async persistToDB(): Promise<void> {
     const parsed = ProjectStateSchema.safeParse(this.state);
     if (!parsed.success) {
-      throw new Error(`无法持久化: 状态未通过 Zod 校验: ${parsed.error.message}`);
+      throw new Error(`无法持久化: 状态未通过 Zod 校验: ${formatZodError(parsed.error)}`);
     }
     await saveProject(parsed.data);
   }
@@ -1057,7 +1058,7 @@ export class ProjectStore {
     // Explicit schema constraint
     const parsed = ProjectStateSchema.safeParse(sanitizedData);
     if (!parsed.success) {
-      throw new Error(`无法恢复项目: 数据库持久化数据已损坏、不合法或 schemaVersion 不兼容。 Zod 报错: ${parsed.error.message}`);
+      throw new Error(`无法恢复项目: 数据库持久化数据已损坏、不合法或 schemaVersion 不兼容。 Zod 报错: ${formatZodError(parsed.error)}`);
     }
 
     let stateData = { ...parsed.data };

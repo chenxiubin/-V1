@@ -215,9 +215,6 @@ describe('Integration Tests', () => {
         softness: 'soft',
         contrast: 'medium',
       },
-      overallConfidence: 'high',
-      uncertainties: [],
-      analyzedAt: new Date().toISOString(),
     };
 
     if ((window as any).resolveAnalyze) { (window as any).resolveAnalyze(dummyProfile); }
