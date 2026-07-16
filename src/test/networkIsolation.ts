@@ -1,5 +1,5 @@
 import { vi } from 'vitest';
-import type { ModelDiscoveryResult } from '../../server/services/geminiModelDiscovery.js';
+import type { ModelDiscoveryResult } from '../../shared/aiModelContracts.js';
 
 export function setupNetworkIsolation(): () => void {
   const originalFetch = globalThis.fetch;

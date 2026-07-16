@@ -58,10 +58,18 @@ export interface ModelResolution {
  * If no requestedModelId is provided, falls back to process.env.GEMINI_ANALYSIS_MODEL or the default.
  */
 export async function resolveRuntimeModelId(requestedModelId?: string): Promise<ModelResolution> {
-  // If user requested modelId is "null", "undefined", or empty string, treat it as undefined
-  const cleanRequestedModelId = (requestedModelId === 'null' || requestedModelId === 'undefined' || requestedModelId === '') 
-    ? undefined 
-    : requestedModelId;
+  if (requestedModelId !== undefined) {
+    if (requestedModelId === 'null' || requestedModelId === 'undefined' || requestedModelId === '') {
+      throw new RuntimeModelError(
+        'INVALID_MODEL_ID',
+        '模型 ID 格式不合法，请重新选择模型。',
+        400,
+        false
+      );
+    }
+  }
+
+  const cleanRequestedModelId = requestedModelId;
 
   if (cleanRequestedModelId) {
     // 1. Check format validity
@@ -94,7 +102,7 @@ export async function resolveRuntimeModelId(requestedModelId?: string): Promise<
       throw new RuntimeModelError(
         'MODEL_NOT_FOUND',
         '当前 API Key 无法访问所选模型，请刷新模型列表后重新选择。',
-        404,
+        400,
         false
       );
     }

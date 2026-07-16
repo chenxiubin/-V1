@@ -19,60 +19,6 @@ const ALLOWED_MIMES = ['image/png', 'image/jpeg', 'image/webp'];
 
 import { GoogleGenAI } from '@google/genai';
 
-router.get('/gemini-health', async (req: Request, res: Response) => {
-  const start = Date.now();
-  const apiKey = process.env.GEMINI_API_KEY;
-  const model = process.env.GEMINI_ANALYSIS_MODEL || 'gemini-3.5-flash';
-  
-  if (!apiKey) {
-    return res.status(200).json({
-      ok: false,
-      model,
-      keyConfigured: false,
-      durationMs: Date.now() - start,
-      error: {
-        name: 'MissingKeyError',
-        status: null,
-        code: 'MISSING_API_KEY',
-        message: 'GEMINI_API_KEY is not configured.'
-      }
-    });
-  }
-
-  try {
-    const ai = new GoogleGenAI({ apiKey });
-    const response = await ai.models.generateContent({
-      model,
-      contents: [{ role: 'user', parts: [{ text: 'Respond with exactly: OK' }] }],
-      config: {
-        maxOutputTokens: 10,
-        temperature: 0
-      }
-    });
-
-    return res.status(200).json({
-      ok: true,
-      model,
-      keyConfigured: true,
-      durationMs: Date.now() - start,
-      error: null
-    });
-  } catch (error: any) {
-    return res.status(200).json({
-      ok: false,
-      model,
-      keyConfigured: true,
-      durationMs: Date.now() - start,
-      error: {
-        name: error.name || 'Error',
-        status: error.status || error.statusCode || null,
-        code: error.code || 'UNKNOWN_ERROR',
-        message: error.message || 'Unknown error occurred'
-      }
-    });
-  }
-});
-
 router.post('/analyze-product', (req: Request, res: Response, next: NextFunction) => {
   upload.single('productImage')(req, res, async (err) => {
     if (err) {
@@ -121,18 +67,37 @@ router.post('/analyze-product', (req: Request, res: Response, next: NextFunction
         });
       }
 
-      // Resolve dynamic modelId from form field body
-      const requestedModelId = req.body && req.body.modelId ? String(req.body.modelId) : undefined;
+      // Use ModelRequestContextSchema to parse/validate the request modelId input
+      const parsedContext = ModelRequestContextSchema.safeParse({
+        modelId: req.body && req.body.modelId !== undefined ? req.body.modelId : undefined
+      });
+
+      if (!parsedContext.success) {
+        return res.status(400).json({
+          code: 'INVALID_MODEL_ID',
+          message: '模型 ID 格式不合法，请重新选择模型。',
+          retryable: false
+        });
+      }
+
+      const requestedModelId = parsedContext.data.modelId || undefined;
 
       let effectiveModelId: string;
       try {
         const resolution = await resolveRuntimeModelId(requestedModelId);
         effectiveModelId = resolution.effectiveModelId;
       } catch (modelErr: any) {
-        return res.status(modelErr.status || 500).json({
-          code: modelErr.code || 'UNKNOWN_ERROR',
-          message: modelErr.message,
-          retryable: typeof modelErr.retryable === 'boolean' ? modelErr.retryable : false,
+        if (modelErr && typeof modelErr.status === 'number' && typeof modelErr.code === 'string') {
+          return res.status(modelErr.status).json({
+            code: modelErr.code,
+            message: modelErr.message,
+            retryable: typeof modelErr.retryable === 'boolean' ? modelErr.retryable : false,
+          });
+        }
+        return res.status(500).json({
+          code: 'INTERNAL_ERROR',
+          message: '模型解析或运行过程中发生未知错误。',
+          retryable: false,
         });
       }
 

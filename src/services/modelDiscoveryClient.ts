@@ -1,4 +1,4 @@
-import { ModelDiscoveryResult } from '../../server/services/geminiModelDiscovery.js';
+import { ModelDiscoveryResult } from '../../shared/aiModelContracts.js';
 
 export class ModelDiscoveryClient {
   private static cachedResult: ModelDiscoveryResult | null = null;

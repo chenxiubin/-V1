@@ -3,7 +3,7 @@ import { ProductProfile, ProductProfileSchema } from '../../src/types/schemas.js
 import { ProductAnalysisService } from './productAnalysisService.js';
 
 // Centralized configurations as required by Phase 2-B2
-export const GEMINI_ANALYSIS_MODEL = process.env.GEMINI_ANALYSIS_MODEL || 'gemini-3.5-flash';
+export const GEMINI_ANALYSIS_MODEL = 'gemini-3.5-flash';
 export const GEMINI_ANALYSIS_TIMEOUT_MS = Number(process.env.GEMINI_ANALYSIS_TIMEOUT_MS) || 120000;
 
 export interface GeminiClient {
@@ -208,7 +208,7 @@ export class GeminiProductAnalysisService implements ProductAnalysisService {
     };
 
     const analyzedAt = new Date().toISOString();
-    const modelName = modelId || process.env.GEMINI_ANALYSIS_MODEL || 'gemini-3.5-flash';
+    const modelName = modelId || 'gemini-3.5-flash';
     const timeoutMs = Number(process.env.GEMINI_ANALYSIS_TIMEOUT_MS) || 120000;
 
     let attempts = 0;

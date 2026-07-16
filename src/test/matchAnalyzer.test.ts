@@ -5,7 +5,9 @@ import { RealAdapter } from '../services/ai/realAdapter';
 import * as db from '../lib/db';
 
 vi.mock('../lib/db', () => ({
-    getAsset: vi.fn()
+    getAsset: vi.fn(),
+    getModelSettings: vi.fn().mockResolvedValue({ selectedModelId: 'gemini-3.5-flash', updatedAt: '2026-07-16T00:00:00Z' }),
+    saveModelSettings: vi.fn()
 }));
 
 const adapter = new RealAdapter();

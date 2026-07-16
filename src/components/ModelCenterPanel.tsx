@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, RefreshCw, AlertCircle, Info, Check, Image as ImageIcon, FileJson, Server, Activity, ArrowRight, Database } from 'lucide-react';
 import { ModelDiscoveryClient } from '../services/modelDiscoveryClient';
-import type { ModelDiscoveryResult, DiscoveredModel } from '../../server/services/geminiModelDiscovery';
+import type { ModelDiscoveryResult, DiscoveredModel } from '../../shared/aiModelContracts';
 import { useModelSettings } from '../context/ModelSettingsContext';
 
 interface ModelCenterPanelProps {

@@ -4,6 +4,7 @@ import { setupNetworkIsolation } from './networkIsolation';
 import React from 'react';
 import { render, screen, act, cleanup, fireEvent, waitFor } from '@testing-library/react';
 import App from '../App';
+import { ModelSettingsProvider } from '../context/ModelSettingsContext';
 import { ModelDiscoveryClient } from '../services/modelDiscoveryClient';
 
 vi.mock('../lib/db', () => ({
@@ -106,7 +107,11 @@ describe('App Network Isolation & UI Interaction', () => {
     const fetchSpy = globalThis.fetch as any;
     
     await act(async () => {
-      render(<App />);
+      render(
+        <ModelSettingsProvider>
+          <App />
+        </ModelSettingsProvider>
+      );
     });
     
     let initialModelsCalls = fetchSpy.mock.calls.filter((c: any) => c[0].includes('/api/ai/models'));

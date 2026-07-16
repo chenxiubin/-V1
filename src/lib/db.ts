@@ -65,7 +65,7 @@ export function getModelSettings(): Promise<ModelSettings | undefined> {
   }).catch(() => undefined);
 }
 
-export function saveModelSettings(selectedModelId: string): Promise<ModelSettings> {
+export function saveModelSettings(selectedModelId: string | null): Promise<ModelSettings> {
   const modelSettingsPayload = {
     id: 'app-settings',
     selectedModelId,

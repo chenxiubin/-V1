@@ -254,7 +254,7 @@ export class GeminiScenePlannerService {
     }
 
     const client = this.getClient();
-    const modelName = modelId || process.env.GEMINI_ANALYSIS_MODEL || 'gemini-3.5-flash';
+    const modelName = modelId || 'gemini-3.5-flash';
     const timeoutMs = 60000;
 
     let attempts = 0;
@@ -355,7 +355,7 @@ export class GeminiScenePlannerService {
     }
 
     const client = this.getClient();
-    const modelName = modelId || process.env.GEMINI_ANALYSIS_MODEL || 'gemini-3.5-flash';
+    const modelName = modelId || 'gemini-3.5-flash';
     const timeoutMs = Number(process.env.GEMINI_ANALYSIS_TIMEOUT_MS) || 30000;
 
     let attempts = 0;
@@ -526,7 +526,7 @@ export class GeminiScenePlannerService {
     }
 
     const client = this.getClient();
-    const modelName = modelId || process.env.GEMINI_ANALYSIS_MODEL || 'gemini-3.5-flash';
+    const modelName = modelId || 'gemini-3.5-flash';
     const timeoutMs = Number(process.env.GEMINI_ANALYSIS_TIMEOUT_MS) || 30000;
 
     let attempts = 0;
@@ -762,7 +762,7 @@ export class GeminiScenePlannerService {
     }
 
     const client = this.getClient();
-    const modelName = modelId || process.env.GEMINI_ANALYSIS_MODEL || 'gemini-3.5-flash';
+    const modelName = modelId || 'gemini-3.5-flash';
     const timeoutMs = Number(process.env.GEMINI_RECIPE_TIMEOUT_MS) || 120000;
 
     let attempts = 0;

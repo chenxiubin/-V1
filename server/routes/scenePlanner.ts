@@ -71,18 +71,37 @@ router.post('/guided-questions', async (req: Request, res: Response) => {
       });
     }
 
-    // Resolve dynamic modelId
-    const requestedModelId = req.body && req.body.modelId ? String(req.body.modelId) : undefined;
+    // Use ModelRequestContextSchema to parse/validate the request modelId input
+    const parsedContext = ModelRequestContextSchema.safeParse({
+      modelId: req.body && req.body.modelId !== undefined ? req.body.modelId : undefined
+    });
+
+    if (!parsedContext.success) {
+      return res.status(400).json({
+        code: 'INVALID_MODEL_ID',
+        message: '模型 ID 格式不合法，请重新选择模型。',
+        retryable: false
+      });
+    }
+
+    const requestedModelId = parsedContext.data.modelId || undefined;
 
     let effectiveModelId: string;
     try {
       const resolution = await resolveRuntimeModelId(requestedModelId);
       effectiveModelId = resolution.effectiveModelId;
     } catch (modelErr: any) {
-      return res.status(modelErr.status || 500).json({
-        code: modelErr.code || 'UNKNOWN_ERROR',
-        message: modelErr.message,
-        retryable: typeof modelErr.retryable === 'boolean' ? modelErr.retryable : false
+      if (modelErr && typeof modelErr.status === 'number' && typeof modelErr.code === 'string') {
+        return res.status(modelErr.status).json({
+          code: modelErr.code,
+          message: modelErr.message,
+          retryable: typeof modelErr.retryable === 'boolean' ? modelErr.retryable : false,
+        });
+      }
+      return res.status(500).json({
+        code: 'INTERNAL_ERROR',
+        message: '模型解析或运行过程中发生未知错误。',
+        retryable: false,
       });
     }
 
@@ -144,18 +163,37 @@ router.post('/scene-directions', async (req: Request, res: Response) => {
       });
     }
 
-    // Resolve dynamic modelId
-    const requestedModelId = req.body && req.body.modelId ? String(req.body.modelId) : undefined;
+    // Use ModelRequestContextSchema to parse/validate the request modelId input
+    const parsedContext = ModelRequestContextSchema.safeParse({
+      modelId: req.body && req.body.modelId !== undefined ? req.body.modelId : undefined
+    });
+
+    if (!parsedContext.success) {
+      return res.status(400).json({
+        code: 'INVALID_MODEL_ID',
+        message: '模型 ID 格式不合法，请重新选择模型。',
+        retryable: false
+      });
+    }
+
+    const requestedModelId = parsedContext.data.modelId || undefined;
 
     let effectiveModelId: string;
     try {
       const resolution = await resolveRuntimeModelId(requestedModelId);
       effectiveModelId = resolution.effectiveModelId;
     } catch (modelErr: any) {
-      return res.status(modelErr.status || 500).json({
-        code: modelErr.code || 'UNKNOWN_ERROR',
-        message: modelErr.message,
-        retryable: typeof modelErr.retryable === 'boolean' ? modelErr.retryable : false
+      if (modelErr && typeof modelErr.status === 'number' && typeof modelErr.code === 'string') {
+        return res.status(modelErr.status).json({
+          code: modelErr.code,
+          message: modelErr.message,
+          retryable: typeof modelErr.retryable === 'boolean' ? modelErr.retryable : false,
+        });
+      }
+      return res.status(500).json({
+        code: 'INTERNAL_ERROR',
+        message: '模型解析或运行过程中发生未知错误。',
+        retryable: false,
       });
     }
 
@@ -335,18 +373,37 @@ router.post('/scene-recipe', async (req: Request, res: Response) => {
     const service = req.app.get('scenePlannerService') as GeminiScenePlannerService;
     if (!service) return res.status(500).json({ code: 'SERVICE_NOT_FOUND', message: '服务未注册', retryable: false });
 
-    // Resolve dynamic modelId
-    const requestedModelId = req.body && req.body.modelId ? String(req.body.modelId) : undefined;
+    // Use ModelRequestContextSchema to parse/validate the request modelId input
+    const parsedContext = ModelRequestContextSchema.safeParse({
+      modelId: req.body && req.body.modelId !== undefined ? req.body.modelId : undefined
+    });
+
+    if (!parsedContext.success) {
+      return res.status(400).json({
+        code: 'INVALID_MODEL_ID',
+        message: '模型 ID 格式不合法，请重新选择模型。',
+        retryable: false
+      });
+    }
+
+    const requestedModelId = parsedContext.data.modelId || undefined;
 
     let effectiveModelId: string;
     try {
       const resolution = await resolveRuntimeModelId(requestedModelId);
       effectiveModelId = resolution.effectiveModelId;
     } catch (modelErr: any) {
-      return res.status(modelErr.status || 500).json({
-        code: modelErr.code || 'UNKNOWN_ERROR',
-        message: modelErr.message,
-        retryable: typeof modelErr.retryable === 'boolean' ? modelErr.retryable : false
+      if (modelErr && typeof modelErr.status === 'number' && typeof modelErr.code === 'string') {
+        return res.status(modelErr.status).json({
+          code: modelErr.code,
+          message: modelErr.message,
+          retryable: typeof modelErr.retryable === 'boolean' ? modelErr.retryable : false,
+        });
+      }
+      return res.status(500).json({
+        code: 'INTERNAL_ERROR',
+        message: '模型解析或运行过程中发生未知错误。',
+        retryable: false,
       });
     }
 
@@ -410,21 +467,41 @@ router.post('/analyze-match', upload.fields([
     const service = req.app.get('scenePlannerService') as GeminiScenePlannerService;
     if (!service) return res.status(500).json({ code: 'SERVICE_NOT_FOUND', message: '服务未注册', retryable: false });
 
-    // Resolve dynamic modelId
     const bodyModelId = req.body && req.body.modelId;
     const dataModelId = data && data.modelId;
-    const candidateModelId = bodyModelId || dataModelId;
-    const requestedModelId = candidateModelId ? String(candidateModelId) : undefined;
+    const candidateModelId = bodyModelId !== undefined ? bodyModelId : (dataModelId !== undefined ? dataModelId : undefined);
+
+    // Use ModelRequestContextSchema to parse/validate the request modelId input
+    const parsedContext = ModelRequestContextSchema.safeParse({
+      modelId: candidateModelId
+    });
+
+    if (!parsedContext.success) {
+      return res.status(400).json({
+        code: 'INVALID_MODEL_ID',
+        message: '模型 ID 格式不合法，请重新选择模型。',
+        retryable: false
+      });
+    }
+
+    const requestedModelId = parsedContext.data.modelId || undefined;
 
     let effectiveModelId: string;
     try {
       const resolution = await resolveRuntimeModelId(requestedModelId);
       effectiveModelId = resolution.effectiveModelId;
     } catch (modelErr: any) {
-      return res.status(modelErr.status || 500).json({
-        code: modelErr.code || 'UNKNOWN_ERROR',
-        message: modelErr.message,
-        retryable: typeof modelErr.retryable === 'boolean' ? modelErr.retryable : false
+      if (modelErr && typeof modelErr.status === 'number' && typeof modelErr.code === 'string') {
+        return res.status(modelErr.status).json({
+          code: modelErr.code,
+          message: modelErr.message,
+          retryable: typeof modelErr.retryable === 'boolean' ? modelErr.retryable : false,
+        });
+      }
+      return res.status(500).json({
+        code: 'INTERNAL_ERROR',
+        message: '模型解析或运行过程中发生未知错误。',
+        retryable: false,
       });
     }
 

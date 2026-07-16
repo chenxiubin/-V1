@@ -130,7 +130,7 @@ describe('resolveRuntimeModelId unit and concurrency tests', () => {
       expect.fail('Should throw');
     } catch (e: any) {
       expect(e.code).toBe('MODEL_NOT_FOUND');
-      expect(e.status).toBe(404);
+      expect(e.status).toBe(400);
     }
   });
 

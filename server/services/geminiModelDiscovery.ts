@@ -1,38 +1,6 @@
 import { GoogleGenAI } from '@google/genai';
 import { getModelCapability } from '../../src/config/geminiModelCapabilities.js';
-
-export interface DiscoveredModel {
-  id: string;
-  resourceName: string;
-  displayName: string;
-  description: string;
-  inputTokenLimit: number;
-  outputTokenLimit: number;
-  supportedGenerationMethods: string[];
-  releaseChannel: 'stable' | 'preview' | 'experimental' | 'unknown';
-  compatibility: 'compatible' | 'unknown' | 'incompatible';
-  capabilities: {
-    imageInput: boolean;
-    structuredOutput: boolean;
-    multimodalStatus: 'confirmed' | 'unknown';
-  };
-  selectableInFuture: boolean;
-}
-
-export interface ModelDiscoveryResult {
-  models: DiscoveredModel[];
-  currentConfiguredModelId: string;
-  apiKeyConfigured: boolean;
-  quota: {
-    officialRemainingToday: null;
-    officialDailyLimit: null;
-    reason: string;
-  };
-  fetchedAt: string;
-  cacheExpiresAt: string;
-  stale: boolean;
-  refreshError?: string;
-}
+import { DiscoveredModel, ModelDiscoveryResult } from '../../shared/aiModelContracts.js';
 
 const CACHE_DURATION_MS = 5 * 60 * 1000; // 5 minutes
 
