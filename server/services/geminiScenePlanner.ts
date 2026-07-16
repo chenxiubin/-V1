@@ -236,7 +236,7 @@ export class GeminiScenePlannerService {
     return new DefaultGeminiClient(key);
   }
 
-  async analyzeMatch(input: AnalyzeMatchInput & { productBuffer: Buffer, sceneBuffer: Buffer, overlayBuffer: Buffer }, modelId?: string): Promise<MatchReport> {
+  async analyzeMatch(input: AnalyzeMatchInput & { productBuffer: Buffer, sceneBuffer: Buffer, overlayBuffer: Buffer }, modelId: string): Promise<MatchReport> {
     const key = process.env.GEMINI_API_KEY;
     if (!key) {
       const err = new Error('系统未配置大语言模型 API 密钥(GEMINI_API_KEY)。');
@@ -351,7 +351,7 @@ export class GeminiScenePlannerService {
       .join(',');
   }
 
-  async generateGuidedQuestions(profile: ProductProfile, modelId?: string): Promise<GuidedQuestion[]> {
+  async generateGuidedQuestions(profile: ProductProfile, modelId: string): Promise<GuidedQuestion[]> {
     const key = process.env.GEMINI_API_KEY;
     if (!key) {
       const err = new Error('系统未配置大语言模型 API 密钥(GEMINI_API_KEY)。');
@@ -528,7 +528,7 @@ export class GeminiScenePlannerService {
     throw parseErr;
   }
 
-  async planSceneDirections(profile: ProductProfile, answers: GuidedAnswer[] , modelId?: string): Promise<SceneDirection[]> {
+  async planSceneDirections(profile: ProductProfile, answers: GuidedAnswer[] , modelId: string): Promise<SceneDirection[]> {
     const key = process.env.GEMINI_API_KEY;
     if (!key) {
       const err = new Error('系统未配置大语言模型 API 密钥(GEMINI_API_KEY)。');
@@ -748,8 +748,8 @@ export class GeminiScenePlannerService {
     answers: GuidedAnswer[],
     directions: SceneDirection[],
     selectedDirectionId: string,
-    productAsset?: any,
-    modelId?: string
+    productAsset: any,
+    modelId: string
   ): Promise<any> {
     const key = process.env.GEMINI_API_KEY;
     if (!key) {

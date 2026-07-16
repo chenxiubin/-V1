@@ -141,7 +141,7 @@ describe('GeminiScenePlannerService Unit Tests', () => {
       text: JSON.stringify(VALID_QUESTIONS_MOCK_RESPONSE)
     });
 
-    const planner = new GeminiScenePlannerService(client);
+    const planner: any = new GeminiScenePlannerService(client);
     const result = await planner.generateGuidedQuestions(VALID_MOCK_PROFILE);
 
     expect(result).toHaveLength(2);
@@ -169,7 +169,7 @@ describe('GeminiScenePlannerService Unit Tests', () => {
       text: JSON.stringify(badResponse)
     });
 
-    const planner = new GeminiScenePlannerService(client);
+    const planner: any = new GeminiScenePlannerService(client);
     await expect(planner.generateGuidedQuestions(VALID_MOCK_PROFILE))
       .rejects
       .toThrowError('生成引导问题大模型响应解析及校验失败');
@@ -205,7 +205,7 @@ describe('GeminiScenePlannerService Unit Tests', () => {
       text: JSON.stringify(badResponse)
     });
 
-    const planner = new GeminiScenePlannerService(client);
+    const planner: any = new GeminiScenePlannerService(client);
     await expect(planner.generateGuidedQuestions(VALID_MOCK_PROFILE))
       .rejects
       .toThrowError('生成引导问题大模型响应解析及校验失败');
@@ -227,7 +227,7 @@ describe('GeminiScenePlannerService Unit Tests', () => {
       text: JSON.stringify(badResponse)
     });
 
-    const planner = new GeminiScenePlannerService(client);
+    const planner: any = new GeminiScenePlannerService(client);
     await expect(planner.planSceneDirections(VALID_MOCK_PROFILE, []))
       .rejects
       .toThrowError('规划场景方向大模型响应解析及校验失败');
@@ -250,7 +250,7 @@ describe('GeminiScenePlannerService Unit Tests', () => {
       text: JSON.stringify(badResponse)
     });
 
-    const planner = new GeminiScenePlannerService(client);
+    const planner: any = new GeminiScenePlannerService(client);
     await expect(planner.planSceneDirections(VALID_MOCK_PROFILE, []))
       .rejects
       .toThrowError('规划场景方向大模型响应解析及校验失败');
@@ -273,7 +273,7 @@ describe('GeminiScenePlannerService Unit Tests', () => {
       text: JSON.stringify(badResponse)
     });
 
-    const planner = new GeminiScenePlannerService(client);
+    const planner: any = new GeminiScenePlannerService(client);
     await expect(planner.planSceneDirections(VALID_MOCK_PROFILE, []))
       .rejects
       .toThrowError('规划场景方向大模型响应解析及校验失败');
@@ -310,7 +310,7 @@ describe('GeminiScenePlannerService Unit Tests', () => {
       .mockResolvedValueOnce({ text: JSON.stringify(englishResponse) })
       .mockResolvedValueOnce({ text: JSON.stringify(VALID_QUESTIONS_MOCK_RESPONSE) });
 
-    const planner = new GeminiScenePlannerService(client);
+    const planner: any = new GeminiScenePlannerService(client);
     const result = await planner.generateGuidedQuestions(VALID_MOCK_PROFILE);
 
     expect(result).toHaveLength(2);
@@ -324,7 +324,7 @@ describe('GeminiScenePlannerService Unit Tests', () => {
       text: 'Malformed JSON completely'
     });
 
-    const planner = new GeminiScenePlannerService(client);
+    const planner: any = new GeminiScenePlannerService(client);
     await expect(planner.generateGuidedQuestions(VALID_MOCK_PROFILE))
       .rejects
       .toThrowError('生成引导问题大模型响应解析及校验失败');
@@ -405,7 +405,7 @@ describe('GeminiScenePlannerService Unit Tests', () => {
       .mockResolvedValueOnce({ text: JSON.stringify(badResponse) })
       .mockResolvedValueOnce({ text: JSON.stringify(goodResponse) });
 
-    const planner = new GeminiScenePlannerService(client);
+    const planner: any = new GeminiScenePlannerService(client);
     const result = await planner.generateGuidedQuestions(VALID_MOCK_PROFILE);
 
     expect(result).toHaveLength(2);
@@ -435,7 +435,7 @@ describe('GeminiScenePlannerService Unit Tests', () => {
       text: JSON.stringify(badResponse)
     });
 
-    const planner = new GeminiScenePlannerService(client);
+    const planner: any = new GeminiScenePlannerService(client);
     await expect(planner.generateGuidedQuestions(VALID_MOCK_PROFILE))
       .rejects
       .toThrowError('生成引导问题大模型响应解析及校验失败');
@@ -465,7 +465,7 @@ describe('GeminiScenePlannerService Unit Tests', () => {
       text: JSON.stringify(badResponse)
     });
 
-    const planner = new GeminiScenePlannerService(client);
+    const planner: any = new GeminiScenePlannerService(client);
     await expect(planner.generateGuidedQuestions(VALID_MOCK_PROFILE))
       .rejects
       .toThrowError('生成引导问题大模型响应解析及校验失败');
@@ -495,7 +495,7 @@ describe('GeminiScenePlannerService Unit Tests', () => {
       text: JSON.stringify(badResponse)
     });
 
-    const planner = new GeminiScenePlannerService(client);
+    const planner: any = new GeminiScenePlannerService(client);
     await expect(planner.generateGuidedQuestions(VALID_MOCK_PROFILE))
       .rejects
       .toThrowError('生成引导问题大模型响应解析及校验失败');
@@ -517,7 +517,7 @@ describe('GeminiScenePlannerService Unit Tests', () => {
       text: JSON.stringify(badResponse)
     });
 
-    const planner = new GeminiScenePlannerService(client);
+    const planner: any = new GeminiScenePlannerService(client);
     await expect(planner.planSceneDirections(VALID_MOCK_PROFILE, []))
       .rejects
       .toThrowError('规划场景方向大模型响应解析及校验失败');
@@ -553,7 +553,7 @@ describe('GeminiScenePlannerService Unit Tests', () => {
       text: JSON.stringify(badResponse)
     });
 
-    const planner = new GeminiScenePlannerService(client);
+    const planner: any = new GeminiScenePlannerService(client);
     await expect(planner.planSceneDirections(VALID_MOCK_PROFILE, []))
       .rejects
       .toThrowError('规划场景方向大模型响应解析及校验失败');
@@ -588,7 +588,7 @@ describe('GeminiScenePlannerService Unit Tests', () => {
       text: JSON.stringify(badResponse)
     });
 
-    const planner = new GeminiScenePlannerService(client);
+    const planner: any = new GeminiScenePlannerService(client);
     await expect(planner.planSceneDirections(VALID_MOCK_PROFILE, []))
       .rejects
       .toThrowError('规划场景方向大模型响应解析及校验失败');
@@ -615,7 +615,7 @@ describe('GeminiScenePlannerService Unit Tests', () => {
       text: JSON.stringify(badResponse)
     });
 
-    const planner = new GeminiScenePlannerService(client);
+    const planner: any = new GeminiScenePlannerService(client);
     await expect(planner.planSceneDirections(VALID_MOCK_PROFILE, []))
       .rejects
       .toThrowError('规划场景方向大模型响应解析及校验失败');
@@ -630,7 +630,7 @@ describe('GeminiScenePlannerService Unit Tests', () => {
       text: JSON.stringify(VALID_DIRECTIONS_MOCK_RESPONSE)
     });
 
-    const planner = new GeminiScenePlannerService(client);
+    const planner: any = new GeminiScenePlannerService(client);
     const result = await planner.planSceneDirections(VALID_MOCK_PROFILE, []);
 
     expect(result).toHaveLength(3);
@@ -651,7 +651,7 @@ describe('GeminiScenePlannerService Unit Tests', () => {
       .mockResolvedValueOnce({ text: JSON.stringify(badResponse) })
       .mockResolvedValueOnce({ text: JSON.stringify(VALID_DIRECTIONS_MOCK_RESPONSE) });
 
-    const planner = new GeminiScenePlannerService(client);
+    const planner: any = new GeminiScenePlannerService(client);
     const result = await planner.planSceneDirections(VALID_MOCK_PROFILE, []);
 
     expect(result).toHaveLength(3);
@@ -672,7 +672,7 @@ describe('GeminiScenePlannerService Unit Tests', () => {
       text: JSON.stringify(badResponse)
     });
 
-    const planner = new GeminiScenePlannerService(client);
+    const planner: any = new GeminiScenePlannerService(client);
     await expect(planner.planSceneDirections(VALID_MOCK_PROFILE, []))
       .rejects
       .toThrowError('规划场景方向大模型响应解析及校验失败');

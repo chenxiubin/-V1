@@ -46,7 +46,9 @@ export const ModelSettingsProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
-  const currentModelId = selectedModelId !== null ? selectedModelId : discoveredDefault;
+  const currentModelId = selectedModelId !== null
+    ? selectedModelId
+    : (ModelDiscoveryClient.getCachedResult()?.currentConfiguredModelId || discoveredDefault);
 
   return (
     <ModelSettingsContext.Provider value={{ currentModelId, setCurrentModelId, isLoadingSettings }}>

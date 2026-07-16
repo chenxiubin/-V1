@@ -4,6 +4,10 @@ export class ModelDiscoveryClient {
   private static cachedResult: ModelDiscoveryResult | null = null;
   private static pendingRequest: Promise<ModelDiscoveryResult> | null = null;
 
+  static getCachedResult(): ModelDiscoveryResult | null {
+    return this.cachedResult;
+  }
+
   static async fetchModels(refresh: boolean = false): Promise<ModelDiscoveryResult> {
     if (!refresh && this.cachedResult && !this.cachedResult.stale) {
       // Check if cache is expired according to our side

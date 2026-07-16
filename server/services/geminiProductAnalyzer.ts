@@ -180,7 +180,7 @@ export class GeminiProductAnalysisService implements ProductAnalysisService {
     return new DefaultGeminiClient(key);
   }
 
-  async analyze(fileBuffer: Buffer, mimeType: string, productAssetId: string, modelId?: string): Promise<ProductProfile> {
+  async analyze(fileBuffer: Buffer, mimeType: string, productAssetId: string, modelId: string): Promise<ProductProfile> {
     // 1. Force key validation at invocation time
     const key = process.env.GEMINI_API_KEY;
     if (!key) {

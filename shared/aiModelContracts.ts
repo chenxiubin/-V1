@@ -9,11 +9,11 @@ export const ModelIdSchema = z
 
 export const ModelSettingsSchema = z.object({
   selectedModelId: ModelIdSchema.nullable(),
-  updatedAt: z.string().datetime(),
+  updatedAt: z.string().datetime({ offset: true }),
 });
 
 export const ModelRequestContextSchema = z.object({
-  modelId: ModelIdSchema.optional().nullable(),
+  modelId: ModelIdSchema.nullable().optional(),
 });
 
 export const RuntimeModelSourceSchema = z.enum(['user_selection', 'server_default']);
