@@ -5,15 +5,19 @@ export const ModelIdSchema = z
   .trim()
   .min(1)
   .max(128)
-  .regex(/^[a-z0-9][a-z0-9._-]*$/i);
+  .regex(/^[a-z0-9][a-z0-9._-]*$/i)
+  .refine(
+    (val) => val.toLowerCase() !== 'null' && val.toLowerCase() !== 'undefined',
+    { message: "Model ID cannot be the string 'null' or 'undefined'" }
+  );
 
 export const ModelSettingsSchema = z.object({
   selectedModelId: ModelIdSchema.nullable(),
-  updatedAt: z.string().datetime({ offset: true }),
+  updatedAt: z.string().datetime({ offset: true }).nullable(),
 });
 
 export const ModelRequestContextSchema = z.object({
-  modelId: ModelIdSchema.nullable().optional(),
+  modelId: ModelIdSchema.optional(),
 });
 
 export const RuntimeModelSourceSchema = z.enum(['user_selection', 'server_default']);
@@ -21,7 +25,7 @@ export const RuntimeModelSourceSchema = z.enum(['user_selection', 'server_defaul
 export const RuntimeModelResolutionSchema = z.object({
   effectiveModelId: ModelIdSchema,
   source: RuntimeModelSourceSchema,
-  requestedModelId: ModelIdSchema.nullable().optional(),
+  requestedModelId: ModelIdSchema.nullable(),
 });
 
 export const DiscoveredModelSchema = z.object({

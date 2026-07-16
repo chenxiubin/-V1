@@ -15,6 +15,13 @@ describe('Model Contracts Schemas Validation', () => {
       expect(ModelIdSchema.safeParse('gemini.model-test_name').success).toBe(true);
     });
 
+    it('should reject string "null" and "undefined"', () => {
+      expect(ModelIdSchema.safeParse('null').success).toBe(false);
+      expect(ModelIdSchema.safeParse('undefined').success).toBe(false);
+      expect(ModelIdSchema.safeParse('NULL').success).toBe(false);
+      expect(ModelIdSchema.safeParse('Undefined').success).toBe(false);
+    });
+
     it('should trim model ids automatically', () => {
       const parsed = ModelIdSchema.safeParse('  gemini-3.5-flash  ');
       expect(parsed.success).toBe(true);
@@ -54,6 +61,14 @@ describe('Model Contracts Schemas Validation', () => {
       expect(ModelSettingsSchema.safeParse(nullSettings).success).toBe(true);
     });
 
+    it('should allow updatedAt to be null', () => {
+      const nullUpdatedAtSettings = {
+        selectedModelId: 'gemini-1.5-pro',
+        updatedAt: null,
+      };
+      expect(ModelSettingsSchema.safeParse(nullUpdatedAtSettings).success).toBe(true);
+    });
+
     it('should fail with invalid datetime string', () => {
       const invalidSettings = {
         selectedModelId: 'gemini-1.5-pro',
@@ -64,10 +79,11 @@ describe('Model Contracts Schemas Validation', () => {
   });
 
   describe('ModelRequestContextSchema', () => {
-    it('should allow valid modelId, null, or undefined', () => {
+    it('should allow valid modelId or undefined, but reject null', () => {
       expect(ModelRequestContextSchema.safeParse({ modelId: 'gemini-1.5-pro' }).success).toBe(true);
-      expect(ModelRequestContextSchema.safeParse({ modelId: null }).success).toBe(true);
+      expect(ModelRequestContextSchema.safeParse({ modelId: undefined }).success).toBe(true);
       expect(ModelRequestContextSchema.safeParse({}).success).toBe(true);
+      expect(ModelRequestContextSchema.safeParse({ modelId: null }).success).toBe(false);
     });
 
     it('should fail on invalid modelId format', () => {
@@ -84,12 +100,21 @@ describe('Model Contracts Schemas Validation', () => {
   });
 
   describe('RuntimeModelResolutionSchema', () => {
-    it('should validate complete resolution objects', () => {
+    it('should validate complete resolution objects with requestedModelId present', () => {
+      const resolution = {
+        effectiveModelId: 'gemini-1.5-pro',
+        source: 'user_selection',
+        requestedModelId: null,
+      };
+      expect(RuntimeModelResolutionSchema.safeParse(resolution).success).toBe(true);
+    });
+
+    it('should fail when requestedModelId is missing', () => {
       const resolution = {
         effectiveModelId: 'gemini-1.5-pro',
         source: 'user_selection',
       };
-      expect(RuntimeModelResolutionSchema.safeParse(resolution).success).toBe(true);
+      expect(RuntimeModelResolutionSchema.safeParse(resolution).success).toBe(false);
     });
   });
 });

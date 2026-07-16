@@ -16,14 +16,14 @@ class ModelSettingsStore {
       } else {
         this.currentSettings = {
           selectedModelId: null,
-          updatedAt: new Date().toISOString()
+          updatedAt: null
         };
       }
     } catch (err) {
       console.error('[ModelSettingsStore] Failed to load model settings:', err);
       this.currentSettings = {
         selectedModelId: null,
-        updatedAt: new Date().toISOString()
+        updatedAt: null
       };
     }
     this.loaded = true;

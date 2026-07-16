@@ -3,7 +3,7 @@ import { modelSettingsStore } from '../services/modelSettingsStore.js';
 import { ModelDiscoveryClient } from '../services/modelDiscoveryClient.js';
 
 interface ModelSettingsContextType {
-  currentModelId: string;
+  currentModelId: string | null;
   setCurrentModelId: (modelId: string | null) => Promise<void>;
   isLoadingSettings: boolean;
 }
@@ -12,7 +12,6 @@ const ModelSettingsContext = createContext<ModelSettingsContextType | undefined>
 
 export const ModelSettingsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
-  const [discoveredDefault, setDiscoveredDefault] = useState<string>('gemini-3.5-flash');
   const [isLoadingSettings, setIsLoadingSettings] = useState<boolean>(true);
 
   useEffect(() => {
@@ -46,9 +45,7 @@ export const ModelSettingsProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
-  const currentModelId = selectedModelId !== null
-    ? selectedModelId
-    : (ModelDiscoveryClient.getCachedResult()?.currentConfiguredModelId || discoveredDefault);
+  const currentModelId = selectedModelId;
 
   return (
     <ModelSettingsContext.Provider value={{ currentModelId, setCurrentModelId, isLoadingSettings }}>
@@ -61,7 +58,7 @@ export const useModelSettings = () => {
   const context = useContext(ModelSettingsContext);
   if (context === undefined) {
     return {
-      currentModelId: 'gemini-3.5-flash',
+      currentModelId: null,
       setCurrentModelId: async () => {},
       isLoadingSettings: false,
     };

@@ -1207,7 +1207,7 @@ export default function App() {
             
     </div>
           <div className="flex items-center gap-3">
-            <button onClick={() => setShowModelCenter(true)} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-indigo-50 text-indigo-600 border border-indigo-200/60 transition-colors hover:bg-indigo-100">当前模型: {currentModelId} ▾</button>
+            <button onClick={() => setShowModelCenter(true)} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-indigo-50 text-indigo-600 border border-indigo-200/60 transition-colors hover:bg-indigo-100">当前模型: {currentModelId || '服务端默认'} ▾</button>
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200/60 font-mono">
               状态: {statusTranslations[state.status] || state.status}
             </span>

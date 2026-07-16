@@ -2,10 +2,71 @@ import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import { ProductProfileSchema, GuidedAnswerSchema, SceneRecipeSchema, AnalyzeMatchInputSchema, GuidedQuestionSchema, SceneDirectionSchema, CreateRecipeInputSchema } from '../../src/types/schemas.js';
 import { GeminiScenePlannerService } from '../services/geminiScenePlanner.js';
-import { ModelRequestContextSchema } from '../../shared/aiModelContracts.js';
+import { ModelIdSchema, ModelRequestContextSchema } from '../../shared/aiModelContracts.js';
 import { resolveRuntimeModelId } from '../services/geminiRuntimeModel.js';
 
 const router = Router();
+
+function parseAndValidateModelId(req: Request, isMultipart: boolean): { success: true; modelId: string | undefined } | { success: false; status: number; payload: any } {
+  let hasField = false;
+  let rawValue: any = undefined;
+
+  if (isMultipart) {
+    if (req.body && Object.prototype.hasOwnProperty.call(req.body, 'modelId')) {
+      hasField = true;
+      rawValue = req.body.modelId;
+    }
+    if (req.body && req.body.data) {
+      try {
+        const parsedData = JSON.parse(req.body.data);
+        if (parsedData && Object.prototype.hasOwnProperty.call(parsedData, 'modelId')) {
+          hasField = true;
+          if (rawValue === undefined) {
+            rawValue = parsedData.modelId;
+          }
+        }
+      } catch (e) {
+        // Ignore JSON parse error
+      }
+    }
+  } else {
+    if (req.body && Object.prototype.hasOwnProperty.call(req.body, 'modelId')) {
+      hasField = true;
+      rawValue = req.body.modelId;
+    }
+  }
+
+  if (!hasField) {
+    return { success: true, modelId: undefined };
+  }
+
+  if (rawValue === null || rawValue === undefined) {
+    return {
+      success: false,
+      status: 400,
+      payload: {
+        code: 'INVALID_MODEL_ID',
+        message: '模型 ID 格式不合法，请重新选择模型。',
+        retryable: false
+      }
+    };
+  }
+
+  const check = ModelIdSchema.safeParse(rawValue);
+  if (!check.success) {
+    return {
+      success: false,
+      status: 400,
+      payload: {
+        code: 'INVALID_MODEL_ID',
+        message: '模型 ID 格式不合法，请重新选择模型。',
+        retryable: false
+      }
+    };
+  }
+
+  return { success: true, modelId: check.data };
+}
 
 function handleApiError(error, defaultMessage, effectiveModelId?: string) {
   let status = 500;
@@ -72,20 +133,12 @@ router.post('/guided-questions', async (req: Request, res: Response) => {
       });
     }
 
-    // Use ModelRequestContextSchema to parse/validate the request modelId input
-    const parsedContext = ModelRequestContextSchema.safeParse({
-      modelId: req.body && req.body.modelId !== undefined ? req.body.modelId : undefined
-    });
-
-    if (!parsedContext.success) {
-      return res.status(400).json({
-        code: 'INVALID_MODEL_ID',
-        message: '模型 ID 格式不合法，请重新选择模型。',
-        retryable: false
-      });
+    const modelCheck = parseAndValidateModelId(req, false);
+    if (modelCheck.success === false) {
+      return res.status(modelCheck.status).json(modelCheck.payload);
     }
 
-    const requestedModelId = parsedContext.data.modelId || undefined;
+    const requestedModelId = modelCheck.modelId;
 
     try {
       const resolution = await resolveRuntimeModelId(requestedModelId);
@@ -164,20 +217,12 @@ router.post('/scene-directions', async (req: Request, res: Response) => {
       });
     }
 
-    // Use ModelRequestContextSchema to parse/validate the request modelId input
-    const parsedContext = ModelRequestContextSchema.safeParse({
-      modelId: req.body && req.body.modelId !== undefined ? req.body.modelId : undefined
-    });
-
-    if (!parsedContext.success) {
-      return res.status(400).json({
-        code: 'INVALID_MODEL_ID',
-        message: '模型 ID 格式不合法，请重新选择模型。',
-        retryable: false
-      });
+    const modelCheck = parseAndValidateModelId(req, false);
+    if (modelCheck.success === false) {
+      return res.status(modelCheck.status).json(modelCheck.payload);
     }
 
-    const requestedModelId = parsedContext.data.modelId || undefined;
+    const requestedModelId = modelCheck.modelId;
 
     try {
       const resolution = await resolveRuntimeModelId(requestedModelId);
@@ -374,20 +419,12 @@ router.post('/scene-recipe', async (req: Request, res: Response) => {
     const service = req.app.get('scenePlannerService') as GeminiScenePlannerService;
     if (!service) return res.status(500).json({ code: 'SERVICE_NOT_FOUND', message: '服务未注册', retryable: false });
 
-    // Use ModelRequestContextSchema to parse/validate the request modelId input
-    const parsedContext = ModelRequestContextSchema.safeParse({
-      modelId: req.body && req.body.modelId !== undefined ? req.body.modelId : undefined
-    });
-
-    if (!parsedContext.success) {
-      return res.status(400).json({
-        code: 'INVALID_MODEL_ID',
-        message: '模型 ID 格式不合法，请重新选择模型。',
-        retryable: false
-      });
+    const modelCheck = parseAndValidateModelId(req, false);
+    if (modelCheck.success === false) {
+      return res.status(modelCheck.status).json(modelCheck.payload);
     }
 
-    const requestedModelId = parsedContext.data.modelId || undefined;
+    const requestedModelId = modelCheck.modelId;
 
     try {
       const resolution = await resolveRuntimeModelId(requestedModelId);
@@ -468,24 +505,12 @@ router.post('/analyze-match', upload.fields([
     const service = req.app.get('scenePlannerService') as GeminiScenePlannerService;
     if (!service) return res.status(500).json({ code: 'SERVICE_NOT_FOUND', message: '服务未注册', retryable: false });
 
-    const bodyModelId = req.body && req.body.modelId;
-    const dataModelId = data && data.modelId;
-    const candidateModelId = bodyModelId !== undefined ? bodyModelId : (dataModelId !== undefined ? dataModelId : undefined);
-
-    // Use ModelRequestContextSchema to parse/validate the request modelId input
-    const parsedContext = ModelRequestContextSchema.safeParse({
-      modelId: candidateModelId
-    });
-
-    if (!parsedContext.success) {
-      return res.status(400).json({
-        code: 'INVALID_MODEL_ID',
-        message: '模型 ID 格式不合法，请重新选择模型。',
-        retryable: false
-      });
+    const modelCheck = parseAndValidateModelId(req, true);
+    if (modelCheck.success === false) {
+      return res.status(modelCheck.status).json(modelCheck.payload);
     }
 
-    const requestedModelId = parsedContext.data.modelId || undefined;
+    const requestedModelId = modelCheck.modelId;
 
     try {
       const resolution = await resolveRuntimeModelId(requestedModelId);

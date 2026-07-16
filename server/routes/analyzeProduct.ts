@@ -2,10 +2,71 @@ import { Router, Request, Response, NextFunction } from 'express';
 import multer from 'multer';
 import { fileTypeFromBuffer } from 'file-type';
 import { ProductAnalysisService } from '../services/productAnalysisService.js';
-import { ModelRequestContextSchema } from '../../shared/aiModelContracts.js';
+import { ModelIdSchema, ModelRequestContextSchema } from '../../shared/aiModelContracts.js';
 import { resolveRuntimeModelId } from '../services/geminiRuntimeModel.js';
 
 const router = Router();
+
+function parseAndValidateModelId(req: Request, isMultipart: boolean): { success: true; modelId: string | undefined } | { success: false; status: number; payload: any } {
+  let hasField = false;
+  let rawValue: any = undefined;
+
+  if (isMultipart) {
+    if (req.body && Object.prototype.hasOwnProperty.call(req.body, 'modelId')) {
+      hasField = true;
+      rawValue = req.body.modelId;
+    }
+    if (req.body && req.body.data) {
+      try {
+        const parsedData = JSON.parse(req.body.data);
+        if (parsedData && Object.prototype.hasOwnProperty.call(parsedData, 'modelId')) {
+          hasField = true;
+          if (rawValue === undefined) {
+            rawValue = parsedData.modelId;
+          }
+        }
+      } catch (e) {
+        // Ignore JSON parse error, it will be handled by the route itself
+      }
+    }
+  } else {
+    if (req.body && Object.prototype.hasOwnProperty.call(req.body, 'modelId')) {
+      hasField = true;
+      rawValue = req.body.modelId;
+    }
+  }
+
+  if (!hasField) {
+    return { success: true, modelId: undefined };
+  }
+
+  if (rawValue === null || rawValue === undefined) {
+    return {
+      success: false,
+      status: 400,
+      payload: {
+        code: 'INVALID_MODEL_ID',
+        message: '模型 ID 格式不合法，请重新选择模型。',
+        retryable: false
+      }
+    };
+  }
+
+  const check = ModelIdSchema.safeParse(rawValue);
+  if (!check.success) {
+    return {
+      success: false,
+      status: 400,
+      payload: {
+        code: 'INVALID_MODEL_ID',
+        message: '模型 ID 格式不合法，请重新选择模型。',
+        retryable: false
+      }
+    };
+  }
+
+  return { success: true, modelId: check.data };
+}
 
 // Configure multer for memory storage and 10MB limit
 const upload = multer({
@@ -68,20 +129,13 @@ router.post('/analyze-product', (req: Request, res: Response, next: NextFunction
         });
       }
 
-      // Use ModelRequestContextSchema to parse/validate the request modelId input
-      const parsedContext = ModelRequestContextSchema.safeParse({
-        modelId: req.body && req.body.modelId !== undefined ? req.body.modelId : undefined
-      });
-
-      if (!parsedContext.success) {
-        return res.status(400).json({
-          code: 'INVALID_MODEL_ID',
-          message: '模型 ID 格式不合法，请重新选择模型。',
-          retryable: false
-        });
+      // Use parseAndValidateModelId to parse/validate the request modelId input
+      const modelCheck = parseAndValidateModelId(req, true);
+      if (modelCheck.success === false) {
+        return res.status(modelCheck.status).json(modelCheck.payload);
       }
 
-      const requestedModelId = parsedContext.data.modelId || undefined;
+      const requestedModelId = modelCheck.modelId;
 
       try {
         const resolution = await resolveRuntimeModelId(requestedModelId);
