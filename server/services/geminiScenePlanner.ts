@@ -254,7 +254,13 @@ export class GeminiScenePlannerService {
     }
 
     const client = this.getClient();
-    const modelName = modelId || 'gemini-3.5-flash';
+    const modelName = modelId;
+    if (!modelName) {
+      const err = new Error('系统错误：业务 Service 必须指定 resolved modelId。');
+      (err as any).code = 'MODEL_NOT_RESOLVED';
+      (err as any).retryable = false;
+      throw err;
+    }
     const timeoutMs = 60000;
 
     let attempts = 0;
@@ -355,7 +361,13 @@ export class GeminiScenePlannerService {
     }
 
     const client = this.getClient();
-    const modelName = modelId || 'gemini-3.5-flash';
+    const modelName = modelId;
+    if (!modelName) {
+      const err = new Error('系统错误：业务 Service 必须指定 resolved modelId。');
+      (err as any).code = 'MODEL_NOT_RESOLVED';
+      (err as any).retryable = false;
+      throw err;
+    }
     const timeoutMs = Number(process.env.GEMINI_ANALYSIS_TIMEOUT_MS) || 30000;
 
     let attempts = 0;
@@ -526,7 +538,13 @@ export class GeminiScenePlannerService {
     }
 
     const client = this.getClient();
-    const modelName = modelId || 'gemini-3.5-flash';
+    const modelName = modelId;
+    if (!modelName) {
+      const err = new Error('系统错误：业务 Service 必须指定 resolved modelId。');
+      (err as any).code = 'MODEL_NOT_RESOLVED';
+      (err as any).retryable = false;
+      throw err;
+    }
     const timeoutMs = Number(process.env.GEMINI_ANALYSIS_TIMEOUT_MS) || 30000;
 
     let attempts = 0;
@@ -762,7 +780,13 @@ export class GeminiScenePlannerService {
     }
 
     const client = this.getClient();
-    const modelName = modelId || 'gemini-3.5-flash';
+    const modelName = modelId;
+    if (!modelName) {
+      const err = new Error('系统错误：业务 Service 必须指定 resolved modelId。');
+      (err as any).code = 'MODEL_NOT_RESOLVED';
+      (err as any).retryable = false;
+      throw err;
+    }
     const timeoutMs = Number(process.env.GEMINI_RECIPE_TIMEOUT_MS) || 120000;
 
     let attempts = 0;

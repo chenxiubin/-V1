@@ -36,6 +36,7 @@ class MockFailureAnalysisService implements ProductAnalysisService {
 describe('Express /api/ai/analyze-product Endpoint Tests', () => {
   beforeEach(() => {
     app.set('productAnalysisService', new MockSuccessAnalysisService());
+    process.env.GEMINI_ANALYSIS_MODEL = 'gemini-3.5-flash';
   });
 
   it('Missing product file', async () => {

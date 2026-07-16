@@ -56,12 +56,12 @@ describe('GeminiProductAnalysisService Unit Tests', () => {
     const service = new GeminiProductAnalysisService(client);
     const dummyBuffer = Buffer.from('dummy-image');
 
-    await expect(service.analyze(dummyBuffer, 'image/png', 'asset-123'))
+    await expect(service.analyze(dummyBuffer, 'image/png', 'asset-123', 'gemini-3.5-flash'))
       .rejects
       .toThrowError('系统未配置大语言模型 API 密钥');
 
     try {
-      await service.analyze(dummyBuffer, 'image/png', 'asset-123');
+      await service.analyze(dummyBuffer, 'image/png', 'asset-123', 'gemini-3.5-flash');
     } catch (err: any) {
       expect(err.code).toBe('SERVICE_NOT_CONFIGURED');
       expect(err.retryable).toBe(false);
@@ -76,7 +76,7 @@ describe('GeminiProductAnalysisService Unit Tests', () => {
 
     const service = new GeminiProductAnalysisService(client);
     const dummyBuffer = Buffer.from('dummy-image');
-    const result = await service.analyze(dummyBuffer, 'image/png', 'asset-123');
+    const result = await service.analyze(dummyBuffer, 'image/png', 'asset-123', 'gemini-3.5-flash');
 
     expect(result.productAssetId).toBe('asset-123');
     expect(result.productType).toBe('desk_calendar');
@@ -95,14 +95,14 @@ describe('GeminiProductAnalysisService Unit Tests', () => {
     const service = new GeminiProductAnalysisService(client);
     const dummyBuffer = Buffer.from('dummy-image');
 
-    await expect(service.analyze(dummyBuffer, 'image/png', 'asset-123'))
+    await expect(service.analyze(dummyBuffer, 'image/png', 'asset-123', 'gemini-3.5-flash'))
       .rejects
       .toThrowError('分析产品大模型响应解析及校验失败');
 
     expect(client.generateContent).toHaveBeenCalledTimes(2);
 
     try {
-      await service.analyze(dummyBuffer, 'image/png', 'asset-123');
+      await service.analyze(dummyBuffer, 'image/png', 'asset-123', 'gemini-3.5-flash');
     } catch (err: any) {
       expect(err.code).toBe('GEMINI_PARSE_FAILED');
     }
@@ -119,7 +119,7 @@ describe('GeminiProductAnalysisService Unit Tests', () => {
     const service = new GeminiProductAnalysisService(client);
     const dummyBuffer = Buffer.from('dummy-image');
 
-    await expect(service.analyze(dummyBuffer, 'image/png', 'asset-123'))
+    await expect(service.analyze(dummyBuffer, 'image/png', 'asset-123', 'gemini-3.5-flash'))
       .rejects
       .toThrowError('分析产品大模型响应解析及校验失败');
 
@@ -134,7 +134,7 @@ describe('GeminiProductAnalysisService Unit Tests', () => {
 
     const service = new GeminiProductAnalysisService(client);
     const dummyBuffer = Buffer.from('dummy-image');
-    const result = await service.analyze(dummyBuffer, 'image/png', 'asset-123');
+    const result = await service.analyze(dummyBuffer, 'image/png', 'asset-123', 'gemini-3.5-flash');
 
     expect(result.productAssetId).toBe('asset-123');
     expect(result.productType).toBe('desk_calendar');
@@ -151,7 +151,7 @@ describe('GeminiProductAnalysisService Unit Tests', () => {
     const service = new GeminiProductAnalysisService(client);
     const dummyBuffer = Buffer.from('dummy-image');
 
-    await expect(service.analyze(dummyBuffer, 'image/png', 'asset-123'))
+    await expect(service.analyze(dummyBuffer, 'image/png', 'asset-123', 'gemini-3.5-flash'))
       .rejects
       .toThrowError('分析产品大模型响应解析及校验失败');
 
@@ -171,12 +171,12 @@ describe('GeminiProductAnalysisService Unit Tests', () => {
     const service = new GeminiProductAnalysisService(client);
     const dummyBuffer = Buffer.from('dummy-image');
 
-    await expect(service.analyze(dummyBuffer, 'image/png', 'asset-123'))
+    await expect(service.analyze(dummyBuffer, 'image/png', 'asset-123', 'gemini-3.5-flash'))
       .rejects
       .toThrowError('Gemini API 分析产品请求超时。');
 
     try {
-      await service.analyze(dummyBuffer, 'image/png', 'asset-123');
+      await service.analyze(dummyBuffer, 'image/png', 'asset-123', 'gemini-3.5-flash');
     } catch (err: any) {
       expect(err.code).toBe('TIMEOUT');
       expect(err.retryable).toBe(true);
@@ -195,7 +195,7 @@ describe('GeminiProductAnalysisService Unit Tests', () => {
 
     const service = new GeminiProductAnalysisService(client);
     const dummyBuffer = Buffer.from('dummy-image');
-    const result = await service.analyze(dummyBuffer, 'image/png', 'trusted-asset-id');
+    const result = await service.analyze(dummyBuffer, 'image/png', 'trusted-asset-id', 'gemini-3.5-flash');
 
     expect(result.productAssetId).toBe('trusted-asset-id'); // must remain our trusted field
   });
@@ -211,7 +211,7 @@ describe('GeminiProductAnalysisService Unit Tests', () => {
     const hugeBuffer = Buffer.from('VERY_LARGE_IMAGE_CONTENT_BASE64_ABC123'.repeat(100));
 
     try {
-      await service.analyze(hugeBuffer, 'image/png', 'asset-id');
+      await service.analyze(hugeBuffer, 'image/png', 'asset-id', 'gemini-3.5-flash');
       expect.fail('Should have failed');
     } catch (err: any) {
       // The error message must be generic and standard, without leaking the secrets
@@ -244,7 +244,7 @@ describe('GeminiProductAnalysisService Unit Tests', () => {
 
     const service = new GeminiProductAnalysisService(client);
     const dummyBuffer = Buffer.from('dummy-image');
-    const result = await service.analyze(dummyBuffer, 'image/png', 'asset-123');
+    const result = await service.analyze(dummyBuffer, 'image/png', 'asset-123', 'gemini-3.5-flash');
 
     expect(result.productAssetId).toBe('asset-123');
     expect(result.uncertainties[0].reason).toBe('中文说明原因');
@@ -273,14 +273,14 @@ describe('GeminiProductAnalysisService Unit Tests', () => {
     const service = new GeminiProductAnalysisService(client);
     const dummyBuffer = Buffer.from('dummy-image');
 
-    await expect(service.analyze(dummyBuffer, 'image/png', 'asset-123'))
+    await expect(service.analyze(dummyBuffer, 'image/png', 'asset-123', 'gemini-3.5-flash'))
       .rejects
       .toThrowError('分析产品大模型响应解析及校验失败');
 
     expect(client.generateContent).toHaveBeenCalledTimes(2);
     
     try {
-      await service.analyze(dummyBuffer, 'image/png', 'asset-123');
+      await service.analyze(dummyBuffer, 'image/png', 'asset-123', 'gemini-3.5-flash');
     } catch (err: any) {
       expect(err.code).toBe('GEMINI_PARSE_FAILED');
     }
@@ -301,7 +301,7 @@ describe('GeminiProductAnalysisService Unit Tests', () => {
 
     const service = new GeminiProductAnalysisService(client);
     const dummyBuffer = Buffer.from('dummy-image');
-    const result = await service.analyze(dummyBuffer, 'image/png', 'asset-123');
+    const result = await service.analyze(dummyBuffer, 'image/png', 'asset-123', 'gemini-3.5-flash');
 
     expect(result.productAssetId).toBe('asset-123');
     expect(result.uncertainties[0].reason).toBe('无法确定该图层是否为 PNG 透明通道');

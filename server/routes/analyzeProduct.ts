@@ -38,6 +38,7 @@ router.post('/analyze-product', (req: Request, res: Response, next: NextFunction
 
     const reqId = Date.now().toString(36) + Math.random().toString(36).substring(2);
     const start = Date.now();
+    let effectiveModelId: string | undefined = undefined;
     try {
 
     console.log('[ANALYZE_PRODUCT_REQUEST]', {
@@ -82,7 +83,6 @@ router.post('/analyze-product', (req: Request, res: Response, next: NextFunction
 
       const requestedModelId = parsedContext.data.modelId || undefined;
 
-      let effectiveModelId: string;
       try {
         const resolution = await resolveRuntimeModelId(requestedModelId);
         effectiveModelId = resolution.effectiveModelId;
@@ -182,7 +182,7 @@ router.post('/analyze-product', (req: Request, res: Response, next: NextFunction
         console.error(JSON.stringify({
           status,
           code,
-          model: process.env.GEMINI_ANALYSIS_MODEL || 'gemini-3.5-flash',
+          model: effectiveModelId || 'unknown',
           quotaMetric: 'GenerateRequestsPerDayPerProjectPerModel-FreeTier',
           retryAfterSeconds
         }));

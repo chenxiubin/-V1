@@ -199,7 +199,7 @@ export class GeminiProductAnalysisService implements ProductAnalysisService {
       throw err;
     }
 
-    const base64Data = fileBuffer.toString('base64');
+        const base64Data = fileBuffer.toString('base64');
     const imagePart = {
       inlineData: {
         mimeType,
@@ -208,7 +208,13 @@ export class GeminiProductAnalysisService implements ProductAnalysisService {
     };
 
     const analyzedAt = new Date().toISOString();
-    const modelName = modelId || 'gemini-3.5-flash';
+    const modelName = modelId;
+    if (!modelName) {
+      const err = new Error('系统错误：业务 Service 必须指定 resolved modelId。');
+      (err as any).code = 'MODEL_NOT_RESOLVED';
+      (err as any).retryable = false;
+      throw err;
+    }
     const timeoutMs = Number(process.env.GEMINI_ANALYSIS_TIMEOUT_MS) || 120000;
 
     let attempts = 0;

@@ -113,6 +113,7 @@ describe('Phase 4-A: SceneRecipe Server-side Creation', () => {
     const service = new GeminiScenePlannerService(mockClient as any);
     app.set('scenePlannerService', service);
     process.env.GEMINI_API_KEY = 'test-key';
+    process.env.GEMINI_ANALYSIS_MODEL = 'gemini-3.5-flash';
   });
 
   afterEach(() => {

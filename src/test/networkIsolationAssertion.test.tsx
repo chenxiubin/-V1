@@ -115,7 +115,7 @@ describe('App Network Isolation & UI Interaction', () => {
     });
     
     let initialModelsCalls = fetchSpy.mock.calls.filter((c: any) => c[0].includes('/api/ai/models'));
-    expect(initialModelsCalls.length).toBe(1);
+    expect(initialModelsCalls.length).toBe(0);
 
     const modelBadge = await screen.findByText(/当前模型/);
     await act(async () => {

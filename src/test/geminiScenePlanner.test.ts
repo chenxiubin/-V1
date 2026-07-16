@@ -3,6 +3,17 @@ import { GeminiScenePlannerService } from '../../server/services/geminiScenePlan
 import { GeminiClient } from '../../server/services/geminiProductAnalyzer.js';
 import { RealAdapter } from '../../src/services/ai/realAdapter.js';
 
+// Wrap prototype methods for unit tests to inject modelId where missing
+const originalGenerateGuidedQuestions = GeminiScenePlannerService.prototype.generateGuidedQuestions;
+GeminiScenePlannerService.prototype.generateGuidedQuestions = function(profile: any, modelId?: string) {
+  return originalGenerateGuidedQuestions.call(this, profile, modelId || 'gemini-3.5-flash');
+};
+
+const originalPlanSceneDirections = GeminiScenePlannerService.prototype.planSceneDirections;
+GeminiScenePlannerService.prototype.planSceneDirections = function(profile: any, guidedAnswers: any[], modelId?: string) {
+  return originalPlanSceneDirections.call(this, profile, guidedAnswers, modelId || 'gemini-3.5-flash');
+};
+
 class MockGeminiClient implements GeminiClient {
   public generateContent = vi.fn();
 }

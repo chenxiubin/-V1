@@ -38,7 +38,7 @@ export function validateModelIdFormat(modelId: string): boolean {
     modelId.includes('<') ||
     modelId.includes('>') ||
     modelId.startsWith('models/') ||
-    modelId.length > 100
+    modelId.length > 128
   ) {
     return false;
   }
@@ -49,31 +49,35 @@ export function validateModelIdFormat(modelId: string): boolean {
 export interface ModelResolution {
   effectiveModelId: string;
   source: 'user_selection' | 'server_default';
+  requestedModelId: string | null;
 }
 
 /**
  * Resolves and validates the target model ID for the request.
  * If a specific requestedModelId is provided, it must be verified against active,
  * compatible models. If validation fails, appropriate RuntimeModelError is thrown.
- * If no requestedModelId is provided, falls back to process.env.GEMINI_ANALYSIS_MODEL or the default.
+ * If no requestedModelId is provided, falls back to process.env.GEMINI_ANALYSIS_MODEL.
  */
-export async function resolveRuntimeModelId(requestedModelId?: string): Promise<ModelResolution> {
-  if (requestedModelId !== undefined) {
-    if (requestedModelId === 'null' || requestedModelId === 'undefined' || requestedModelId === '') {
-      throw new RuntimeModelError(
-        'INVALID_MODEL_ID',
-        '模型 ID 格式不合法，请重新选择模型。',
-        400,
-        false
-      );
-    }
-  }
+export async function resolveRuntimeModelId(requestedModelId?: string | null): Promise<ModelResolution> {
+  if (requestedModelId !== undefined && requestedModelId !== null) {
+    const isInvalid = 
+      requestedModelId === '' ||
+      requestedModelId.trim() === '' ||
+      requestedModelId === 'null' ||
+      requestedModelId === 'undefined' ||
+      requestedModelId.includes(' ') ||
+      requestedModelId.includes('/') ||
+      requestedModelId.includes('\\') ||
+      requestedModelId.includes('<') ||
+      requestedModelId.includes('>') ||
+      requestedModelId.includes('://') ||
+      requestedModelId.toLowerCase().includes('script') ||
+      requestedModelId.toLowerCase().includes('html') ||
+      requestedModelId.startsWith('models/') ||
+      requestedModelId.length > 128 ||
+      !validateModelIdFormat(requestedModelId);
 
-  const cleanRequestedModelId = requestedModelId;
-
-  if (cleanRequestedModelId) {
-    // 1. Check format validity
-    if (!validateModelIdFormat(cleanRequestedModelId)) {
+    if (isInvalid) {
       throw new RuntimeModelError(
         'INVALID_MODEL_ID',
         '模型 ID 格式不合法，请重新选择模型。',
@@ -97,7 +101,7 @@ export async function resolveRuntimeModelId(requestedModelId?: string): Promise<
     }
 
     // 3. Find matched model
-    const matched = availableModels.models.find(m => m.id === cleanRequestedModelId);
+    const matched = availableModels.models.find(m => m.id === requestedModelId);
     if (!matched) {
       throw new RuntimeModelError(
         'MODEL_NOT_FOUND',
@@ -129,15 +133,16 @@ export async function resolveRuntimeModelId(requestedModelId?: string): Promise<
     return {
       effectiveModelId: matched.id,
       source: 'user_selection',
+      requestedModelId,
     };
   }
 
-  // Fallback flow if no modelId is passed by the request (e.g., legacy request)
+  // Fallback flow if no modelId is passed by the request
   const defaultModel = typeof process.env.GEMINI_ANALYSIS_MODEL === 'string'
-    ? process.env.GEMINI_ANALYSIS_MODEL
-    : 'gemini-3.5-flash';
+    ? process.env.GEMINI_ANALYSIS_MODEL.trim()
+    : undefined;
 
-  if (!defaultModel || !validateModelIdFormat(defaultModel)) {
+  if (!defaultModel || !validateModelIdFormat(defaultModel) || defaultModel === 'null' || defaultModel === 'undefined') {
     throw new RuntimeModelError(
       'DEFAULT_MODEL_NOT_CONFIGURED',
       '服务端默认模型未正确配置。',
@@ -146,32 +151,9 @@ export async function resolveRuntimeModelId(requestedModelId?: string): Promise<
     );
   }
 
-  try {
-    const availableModels = await modelDiscoveryService.getAvailableModels(false);
-    const matchedEnv = availableModels.models.find(m => m.id === defaultModel);
-    if (matchedEnv) {
-      const isCompatible = 
-        matchedEnv.compatibility === 'compatible' &&
-        matchedEnv.selectableInFuture === true &&
-        Array.isArray(matchedEnv.supportedGenerationMethods) &&
-        matchedEnv.supportedGenerationMethods.includes('generateContent') &&
-        matchedEnv.capabilities?.imageInput === true &&
-        matchedEnv.capabilities?.structuredOutput === true &&
-        matchedEnv.capabilities?.multimodalStatus === 'confirmed';
-      if (isCompatible) {
-        return {
-          effectiveModelId: matchedEnv.id,
-          source: 'server_default',
-        };
-      }
-    }
-  } catch (err) {
-    // Graceful fallback for default path
-    console.warn('[resolveRuntimeModelId] Failed to validate default model, using defaultModel fallback:', err);
-  }
-
   return {
     effectiveModelId: defaultModel,
     source: 'server_default',
+    requestedModelId: null,
   };
 }

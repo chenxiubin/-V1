@@ -286,10 +286,7 @@ describe('ModelCenter Integration', () => {
     // Clear network mock calls to count clearly
     const fetchCalls = (global.fetch as any).mock.calls;
     let initialModelCalls = fetchCalls.filter((c: any) => c[0].toString().includes('/api/ai/models')).length;
-    expect(initialModelCalls).toBe(1); // App mounted and fetched models
-
-    // clear the mock calls history
-    (global.fetch as any).mockClear();
+    expect(initialModelCalls).toBe(0); // App mounted and did NOT prefetch models on startup anymore
 
     // Open panel
     await act(async () => {
@@ -299,9 +296,12 @@ describe('ModelCenter Integration', () => {
     // Wait for panel to open
     expect(screen.getByText('模型中心')).toBeDefined();
 
-    // Check fetch wasn't called again because of cache
+    // Check fetch was called exactly once to load models on open
     const afterOpenCalls = (global.fetch as any).mock.calls.filter((c: any) => c[0].toString().includes('/api/ai/models')).length;
-    expect(afterOpenCalls).toBe(0);
+    expect(afterOpenCalls).toBe(1);
+
+    // clear the mock calls history
+    (global.fetch as any).mockClear();
 
     // Close panel
     const closeBtn = screen.getByLabelText('关闭模型中心');
@@ -314,7 +314,7 @@ describe('ModelCenter Integration', () => {
       fireEvent.click(modelButtons[0]);
     });
 
-    // Still no new network request
+    // Still no new network request because of cache
     const afterSecondOpenCalls = (global.fetch as any).mock.calls.filter((c: any) => c[0].toString().includes('/api/ai/models')).length;
     expect(afterSecondOpenCalls).toBe(0);
   });

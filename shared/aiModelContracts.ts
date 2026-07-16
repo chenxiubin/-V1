@@ -5,7 +5,7 @@ export const ModelIdSchema = z
   .trim()
   .min(1)
   .max(128)
-  .regex(/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/);
+  .regex(/^[a-z0-9][a-z0-9._-]*$/i);
 
 export const ModelSettingsSchema = z.object({
   selectedModelId: ModelIdSchema.nullable(),
@@ -21,6 +21,7 @@ export const RuntimeModelSourceSchema = z.enum(['user_selection', 'server_defaul
 export const RuntimeModelResolutionSchema = z.object({
   effectiveModelId: ModelIdSchema,
   source: RuntimeModelSourceSchema,
+  requestedModelId: ModelIdSchema.nullable().optional(),
 });
 
 export const DiscoveredModelSchema = z.object({

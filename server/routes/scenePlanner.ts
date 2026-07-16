@@ -7,7 +7,7 @@ import { resolveRuntimeModelId } from '../services/geminiRuntimeModel.js';
 
 const router = Router();
 
-function handleApiError(error, defaultMessage) {
+function handleApiError(error, defaultMessage, effectiveModelId?: string) {
   let status = 500;
   let code = error.code || 'INTERNAL_ERROR';
   let message = error.message || defaultMessage;
@@ -27,7 +27,7 @@ function handleApiError(error, defaultMessage) {
     console.error(JSON.stringify({
       status,
       code,
-      model: process.env.GEMINI_ANALYSIS_MODEL || 'gemini-3.5-flash',
+      model: effectiveModelId || 'unknown',
       quotaMetric: 'GenerateRequestsPerDayPerProjectPerModel-FreeTier',
       retryAfterSeconds
     }));
@@ -43,6 +43,7 @@ function handleApiError(error, defaultMessage) {
 
 
 router.post('/guided-questions', async (req: Request, res: Response) => {
+  let effectiveModelId: string | undefined = undefined;
   try {
     const productProfile = req.body.productProfile;
     if (!productProfile) {
@@ -86,7 +87,6 @@ router.post('/guided-questions', async (req: Request, res: Response) => {
 
     const requestedModelId = parsedContext.data.modelId || undefined;
 
-    let effectiveModelId: string;
     try {
       const resolution = await resolveRuntimeModelId(requestedModelId);
       effectiveModelId = resolution.effectiveModelId;
@@ -109,12 +109,13 @@ router.post('/guided-questions', async (req: Request, res: Response) => {
     return res.status(200).json(questions);
 
   } catch (error: any) {
-    const { status, payload } = handleApiError(error, '服务端生成引导问题时发生未知错误。');
+    const { status, payload } = handleApiError(error, '服务端生成引导问题时发生未知错误。', effectiveModelId);
     return res.status(status).json(payload);
   }
 });
 
 router.post('/scene-directions', async (req: Request, res: Response) => {
+  let effectiveModelId: string | undefined = undefined;
   try {
     const { productProfile, guidedAnswers } = req.body;
     if (!productProfile) {
@@ -178,7 +179,6 @@ router.post('/scene-directions', async (req: Request, res: Response) => {
 
     const requestedModelId = parsedContext.data.modelId || undefined;
 
-    let effectiveModelId: string;
     try {
       const resolution = await resolveRuntimeModelId(requestedModelId);
       effectiveModelId = resolution.effectiveModelId;
@@ -201,13 +201,14 @@ router.post('/scene-directions', async (req: Request, res: Response) => {
     return res.status(200).json(directions);
 
   } catch (error: any) {
-    const { status, payload } = handleApiError(error, '服务端生成场景规划方向时发生未知错误。');
+    const { status, payload } = handleApiError(error, '服务端生成场景规划方向时发生未知错误。', effectiveModelId);
     return res.status(status).json(payload);
   }
 });
 
 
 router.post('/scene-recipe', async (req: Request, res: Response) => {
+  let effectiveModelId: string | undefined = undefined;
   try {
     const parsedInput = CreateRecipeInputSchema.safeParse(req.body);
     if (!parsedInput.success) {
@@ -388,7 +389,6 @@ router.post('/scene-recipe', async (req: Request, res: Response) => {
 
     const requestedModelId = parsedContext.data.modelId || undefined;
 
-    let effectiveModelId: string;
     try {
       const resolution = await resolveRuntimeModelId(requestedModelId);
       effectiveModelId = resolution.effectiveModelId;
@@ -425,7 +425,7 @@ router.post('/scene-recipe', async (req: Request, res: Response) => {
 
     return res.status(200).json(checkRecipe.data);
   } catch (error: any) {
-    const { status, payload } = handleApiError(error, '生成 Recipe 发生未知错误');
+    const { status, payload } = handleApiError(error, '生成 Recipe 发生未知错误', effectiveModelId);
     return res.status(status).json(payload);
   }
 });
@@ -437,6 +437,7 @@ router.post('/analyze-match', upload.fields([
   { name: 'sceneImage', maxCount: 1 },
   { name: 'overlayImage', maxCount: 1 },
 ]), async (req: Request, res: Response) => {
+  let effectiveModelId: string | undefined = undefined;
   try {
     const files = req.files as { [fieldname: string]: Express.Multer.File[] };
     const data = JSON.parse(req.body.data);
@@ -486,7 +487,6 @@ router.post('/analyze-match', upload.fields([
 
     const requestedModelId = parsedContext.data.modelId || undefined;
 
-    let effectiveModelId: string;
     try {
       const resolution = await resolveRuntimeModelId(requestedModelId);
       effectiveModelId = resolution.effectiveModelId;
@@ -514,7 +514,7 @@ router.post('/analyze-match', upload.fields([
     }, effectiveModelId);
     return res.status(200).json(report);
   } catch (error: any) {
-    const { status, payload } = handleApiError(error, '分析发生未知错误');
+    const { status, payload } = handleApiError(error, '分析发生未知错误', effectiveModelId);
     return res.status(status).json(payload);
   }
 });

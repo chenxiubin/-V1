@@ -20,36 +20,17 @@ export const ModelSettingsProvider: React.FC<{ children: React.ReactNode }> = ({
       setSelectedModelId(settings?.selectedModelId ?? null);
     });
 
-    // Start discovery fetch immediately to ensure network requests are dispatched on mount tick (required for tests)
-    const discoveryPromise = ModelDiscoveryClient.fetchModels()
-      .then((discovery) => {
-        if (discovery && discovery.currentConfiguredModelId) {
-          setDiscoveredDefault(discovery.currentConfiguredModelId);
-        }
-        return discovery;
-      })
-      .catch((err) => {
-        console.warn('[ModelSettingsContext] Failed to fetch discovery on startup, using fallback:', err);
-        return null;
-      });
-
-    async function initSettingsAndDiscovery() {
+    async function initSettings() {
       try {
         await modelSettingsStore.loadModelSettings();
       } catch (err) {
         console.error('[ModelSettingsContext] Error loading settings:', err);
-      }
-
-      try {
-        await discoveryPromise;
-      } catch (err) {
-        // Safe ignore
       } finally {
         setIsLoadingSettings(false);
       }
     }
 
-    initSettingsAndDiscovery();
+    initSettings();
 
     return () => {
       unsubscribe();
