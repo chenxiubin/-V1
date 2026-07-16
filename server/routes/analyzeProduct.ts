@@ -2,6 +2,8 @@ import { Router, Request, Response, NextFunction } from 'express';
 import multer from 'multer';
 import { fileTypeFromBuffer } from 'file-type';
 import { ProductAnalysisService } from '../services/productAnalysisService.js';
+import { ModelRequestContextSchema } from '../../shared/aiModelContracts.js';
+import { resolveRuntimeModelId } from '../services/geminiRuntimeModel.js';
 
 const router = Router();
 
@@ -119,6 +121,31 @@ router.post('/analyze-product', (req: Request, res: Response, next: NextFunction
         });
       }
 
+      // Resolve dynamic modelId from form field body
+      let requestedModelId: string | undefined;
+      if (req.body && req.body.modelId) {
+        const parsedContext = ModelRequestContextSchema.safeParse({ modelId: req.body.modelId });
+        if (!parsedContext.success) {
+          return res.status(400).json({
+            code: 'INVALID_MODEL_REQUESTED',
+            message: '请求中的 modelId 参数格式不正确。',
+            retryable: false,
+          });
+        }
+        requestedModelId = parsedContext.data.modelId;
+      }
+
+      let effectiveModelId: string;
+      try {
+        effectiveModelId = await resolveRuntimeModelId(requestedModelId);
+      } catch (modelErr: any) {
+        return res.status(modelErr.status || 400).json({
+          code: modelErr.code || 'INVALID_MODEL_REQUESTED',
+          message: modelErr.message,
+          retryable: false,
+        });
+      }
+
       // 1. Check declared mime
       if (!ALLOWED_MIMES.includes(file.mimetype)) {
         return res.status(400).json({
@@ -165,8 +192,8 @@ router.post('/analyze-product', (req: Request, res: Response, next: NextFunction
         });
       }
 
-      // 4. Run analysis
-      const profile = await service.analyze(file.buffer, detected.mime, productAssetId);
+      // 4. Run analysis with the resolved modelId
+      const profile = await service.analyze(file.buffer, detected.mime, productAssetId, effectiveModelId);
       
       console.log('[ANALYZE_PRODUCT_RESPONSE]', {
         requestId: reqId,

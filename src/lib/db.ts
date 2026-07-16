@@ -1,5 +1,7 @@
+import { ModelSettingsSchema, ModelSettings } from '../../shared/aiModelContracts';
+
 const DB_NAME = 'CalendarScenePlannerDB';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 export function initDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -21,7 +23,68 @@ export function initDB(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains('assets')) {
         db.createObjectStore('assets');
       }
+      if (!db.objectStoreNames.contains('gemini-model-settings')) {
+        db.createObjectStore('gemini-model-settings', { keyPath: 'id' });
+      }
     };
+  });
+}
+
+export function getModelSettings(): Promise<ModelSettings | undefined> {
+  return initDB().then((db) => {
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction('gemini-model-settings', 'readonly');
+      const store = transaction.objectStore('gemini-model-settings');
+      const request = store.get('app-settings');
+
+      request.onsuccess = () => {
+        const result = request.result;
+        if (!result) {
+          resolve(undefined);
+          return;
+        }
+        const parsed = ModelSettingsSchema.safeParse(result);
+        if (parsed.success) {
+          resolve(parsed.data);
+        } else {
+          console.warn('[IndexedDB] Stored model settings do not match contract:', parsed.error);
+          resolve(undefined);
+        }
+      };
+
+      request.onerror = () => {
+        reject(request.error);
+      };
+    });
+  });
+}
+
+export function saveModelSettings(selectedModelId: string): Promise<ModelSettings> {
+  const modelSettingsPayload = {
+    id: 'app-settings',
+    selectedModelId,
+    updatedAt: new Date().toISOString(),
+  };
+
+  const parsed = ModelSettingsSchema.safeParse(modelSettingsPayload);
+  if (!parsed.success) {
+    throw new Error(`无法保存模型设置：参数 "${selectedModelId}" 不符合 AI 模型契约格式。`);
+  }
+
+  return initDB().then((db) => {
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction('gemini-model-settings', 'readwrite');
+      const store = transaction.objectStore('gemini-model-settings');
+      const request = store.put(modelSettingsPayload);
+
+      request.onsuccess = () => {
+        resolve(parsed.data);
+      };
+
+      request.onerror = () => {
+        reject(request.error);
+      };
+    });
   });
 }
 

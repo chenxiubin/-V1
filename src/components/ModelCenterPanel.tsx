@@ -2,12 +2,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import { X, RefreshCw, AlertCircle, Info, Check, Image as ImageIcon, FileJson, Server, Activity, ArrowRight, Database } from 'lucide-react';
 import { ModelDiscoveryClient } from '../services/modelDiscoveryClient';
 import type { ModelDiscoveryResult, DiscoveredModel } from '../../server/services/geminiModelDiscovery';
+import { useModelSettings } from '../context/ModelSettingsContext';
 
 interface ModelCenterPanelProps {
   onClose: () => void;
 }
 
 export function ModelCenterPanel({ onClose }: ModelCenterPanelProps) {
+  const { currentModelId } = useModelSettings();
   const [data, setData] = useState<ModelDiscoveryResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<{ message: string; code?: string; retryable?: boolean } | null>(null);
@@ -60,8 +62,9 @@ export function ModelCenterPanel({ onClose }: ModelCenterPanelProps) {
     );
   }
 
-  const currentModel = data?.models.find(m => m.id === data.currentConfiguredModelId);
-  const eligibleModels = data?.models.filter(m => m.compatibility !== 'incompatible' && m.id !== data.currentConfiguredModelId) || [];
+  const activeModelId = currentModelId || data?.currentConfiguredModelId || 'gemini-3.5-flash';
+  const currentModel = data?.models.find(m => m.id === activeModelId);
+  const eligibleModels = data?.models.filter(m => m.compatibility !== 'incompatible' && m.id !== activeModelId) || [];
   const stableModels = eligibleModels.filter(m => m.compatibility === 'compatible' && m.releaseChannel === 'stable');
   const previewModels = eligibleModels.filter(m => m.compatibility === 'compatible' && (m.releaseChannel === 'preview' || m.releaseChannel === 'experimental'));
   const unknownModels = eligibleModels.filter(m => m.compatibility === 'unknown');
@@ -98,7 +101,7 @@ export function ModelCenterPanel({ onClose }: ModelCenterPanelProps) {
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-slate-500">当前运行模型:</span>
-                <span className="font-mono text-slate-700 font-medium">{data?.currentConfiguredModelId || '未知'}</span>
+                <span className="font-mono text-slate-700 font-medium">{activeModelId}</span>
               </div>
               {data?.fetchedAt && (
                 <div className="flex items-center gap-2">

@@ -22,7 +22,7 @@ import {
   PlanNextShotInput,
   NextShotPlan
 } from './sceneIntelligenceAdapter';
-import { getAsset } from '../../lib/db';
+import { getAsset, getModelSettings } from '../../lib/db';
 import { validateGuidedQuestionsSemanticContract } from './clientContractValidation';
 
 export class NotImplementedError extends Error {
@@ -194,9 +194,15 @@ export class RealAdapter implements SceneIntelligenceAdapter {
       imageBlob = blob;
     }
 
+    const settings = await getModelSettings();
+    const modelId = settings?.selectedModelId;
+
     const formData = new FormData();
     formData.append('productImage', imageBlob, input.productAsset.name);
     formData.append('productAssetId', input.productAsset.id);
+    if (modelId) {
+      formData.append('modelId', modelId);
+    }
 
     // Make the API request to Express server
     const response = await fetch('/api/ai/analyze-product', {
@@ -221,12 +227,18 @@ export class RealAdapter implements SceneIntelligenceAdapter {
   }
 
   async generateGuidedQuestions(input: GuidedQuestionInput): Promise<GuidedQuestion[]> {
+    const settings = await getModelSettings();
+    const modelId = settings?.selectedModelId;
+
     const response = await fetch('/api/ai/guided-questions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ productProfile: input.productProfile }),
+      body: JSON.stringify({ 
+        productProfile: input.productProfile,
+        modelId
+      }),
     });
 
     const data = await parseResponseSafe(response, '未知服务端分析错误');
@@ -298,6 +310,9 @@ export class RealAdapter implements SceneIntelligenceAdapter {
   }
 
   async planSceneDirections(input: PlanDirectionsInput): Promise<SceneDirection[]> {
+    const settings = await getModelSettings();
+    const modelId = settings?.selectedModelId;
+
     const response = await fetch('/api/ai/scene-directions', {
       method: 'POST',
       headers: {
@@ -306,6 +321,7 @@ export class RealAdapter implements SceneIntelligenceAdapter {
       body: JSON.stringify({
         productProfile: input.productProfile,
         guidedAnswers: input.guidedAnswers,
+        modelId
       }),
     });
 
@@ -334,6 +350,9 @@ export class RealAdapter implements SceneIntelligenceAdapter {
   }
 
   async createSceneRecipe(input: CreateRecipeInput): Promise<SceneRecipe> {
+    const settings = await getModelSettings();
+    const modelId = settings?.selectedModelId;
+
     const response = await fetch('/api/ai/scene-recipe', {
       method: 'POST',
       headers: {
@@ -345,7 +364,8 @@ export class RealAdapter implements SceneIntelligenceAdapter {
         guidedQuestions: input.guidedQuestions,
         guidedAnswers: input.guidedAnswers,
         sceneDirections: input.sceneDirections,
-        selectedDirectionId: input.selectedDirectionId
+        selectedDirectionId: input.selectedDirectionId,
+        modelId
       }),
     });
 
@@ -373,17 +393,24 @@ export class RealAdapter implements SceneIntelligenceAdapter {
       throw new Error('本地数据库未找到必要的分析资产');
     }
 
+    const settings = await getModelSettings();
+    const modelId = settings?.selectedModelId;
+
     const formData = new FormData();
     formData.append('productImage', productBlob, 'product.png');
     formData.append('sceneImage', sceneBlob, 'scene.png');
     formData.append('overlayImage', overlayBlob, 'overlay.png');
+    if (modelId) {
+      formData.append('modelId', modelId);
+    }
     formData.append('data', JSON.stringify({
       productProfile: input.productProfile,
       sceneRecipe: input.sceneRecipe,
       productAsset: input.productAsset,
       sceneAsset: input.sceneAsset,
       promptDocument: input.promptDocument,
-      overlayPreviewRef: input.overlayPreviewRef
+      overlayPreviewRef: input.overlayPreviewRef,
+      modelId
     }));
 
     const response = await fetch('/api/ai/analyze-match', {

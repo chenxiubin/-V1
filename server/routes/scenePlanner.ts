@@ -2,6 +2,8 @@ import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import { ProductProfileSchema, GuidedAnswerSchema, SceneRecipeSchema, AnalyzeMatchInputSchema, GuidedQuestionSchema, SceneDirectionSchema, CreateRecipeInputSchema } from '../../src/types/schemas.js';
 import { GeminiScenePlannerService } from '../services/geminiScenePlanner.js';
+import { ModelRequestContextSchema } from '../../shared/aiModelContracts.js';
+import { resolveRuntimeModelId } from '../services/geminiRuntimeModel.js';
 
 const router = Router();
 
@@ -69,7 +71,32 @@ router.post('/guided-questions', async (req: Request, res: Response) => {
       });
     }
 
-    const questions = await service.generateGuidedQuestions(check.data);
+    // Resolve dynamic modelId
+    let requestedModelId: string | undefined;
+    if (req.body && req.body.modelId) {
+      const parsedContext = ModelRequestContextSchema.safeParse({ modelId: req.body.modelId });
+      if (!parsedContext.success) {
+        return res.status(400).json({
+          code: 'INVALID_MODEL_REQUESTED',
+          message: '请求中的 modelId 参数格式不正确。',
+          retryable: false
+        });
+      }
+      requestedModelId = parsedContext.data.modelId;
+    }
+
+    let effectiveModelId: string;
+    try {
+      effectiveModelId = await resolveRuntimeModelId(requestedModelId);
+    } catch (modelErr: any) {
+      return res.status(modelErr.status || 400).json({
+        code: modelErr.code || 'INVALID_MODEL_REQUESTED',
+        message: modelErr.message,
+        retryable: false
+      });
+    }
+
+    const questions = await service.generateGuidedQuestions(check.data, effectiveModelId);
     return res.status(200).json(questions);
 
   } catch (error: any) {
@@ -127,7 +154,32 @@ router.post('/scene-directions', async (req: Request, res: Response) => {
       });
     }
 
-    const directions = await service.planSceneDirections(checkProfile.data, guidedAnswers);
+    // Resolve dynamic modelId
+    let requestedModelId: string | undefined;
+    if (req.body && req.body.modelId) {
+      const parsedContext = ModelRequestContextSchema.safeParse({ modelId: req.body.modelId });
+      if (!parsedContext.success) {
+        return res.status(400).json({
+          code: 'INVALID_MODEL_REQUESTED',
+          message: '请求中的 modelId 参数格式不正确。',
+          retryable: false
+        });
+      }
+      requestedModelId = parsedContext.data.modelId;
+    }
+
+    let effectiveModelId: string;
+    try {
+      effectiveModelId = await resolveRuntimeModelId(requestedModelId);
+    } catch (modelErr: any) {
+      return res.status(modelErr.status || 400).json({
+        code: modelErr.code || 'INVALID_MODEL_REQUESTED',
+        message: modelErr.message,
+        retryable: false
+      });
+    }
+
+    const directions = await service.planSceneDirections(checkProfile.data, guidedAnswers, effectiveModelId);
     return res.status(200).json(directions);
 
   } catch (error: any) {
@@ -303,7 +355,32 @@ router.post('/scene-recipe', async (req: Request, res: Response) => {
     const service = req.app.get('scenePlannerService') as GeminiScenePlannerService;
     if (!service) return res.status(500).json({ code: 'SERVICE_NOT_FOUND', message: '服务未注册', retryable: false });
 
-    const recipe = await service.createSceneRecipe(checkProfile.data, guidedAnswers, sceneDirections, selectedDirectionId, { id: productAssetId });
+    // Resolve dynamic modelId
+    let requestedModelId: string | undefined;
+    if (req.body && req.body.modelId) {
+      const parsedContext = ModelRequestContextSchema.safeParse({ modelId: req.body.modelId });
+      if (!parsedContext.success) {
+        return res.status(400).json({
+          code: 'INVALID_MODEL_REQUESTED',
+          message: '请求中的 modelId 参数格式不正确。',
+          retryable: false
+        });
+      }
+      requestedModelId = parsedContext.data.modelId;
+    }
+
+    let effectiveModelId: string;
+    try {
+      effectiveModelId = await resolveRuntimeModelId(requestedModelId);
+    } catch (modelErr: any) {
+      return res.status(modelErr.status || 400).json({
+        code: modelErr.code || 'INVALID_MODEL_REQUESTED',
+        message: modelErr.message,
+        retryable: false
+      });
+    }
+
+    const recipe = await service.createSceneRecipe(checkProfile.data, guidedAnswers, sceneDirections, selectedDirectionId, { id: productAssetId }, effectiveModelId);
 
     // Business fixed checks (now relaxed for fields we auto-correct on server anyway)
     if (recipe.version !== 1 || recipe.schemaVersion !== '1.0' || recipe.productAssetId !== checkProfile.data.productAssetId || recipe.selectedDirectionId !== selectedDirectionId) {
@@ -363,13 +440,41 @@ router.post('/analyze-match', upload.fields([
     const service = req.app.get('scenePlannerService') as GeminiScenePlannerService;
     if (!service) return res.status(500).json({ code: 'SERVICE_NOT_FOUND', message: '服务未注册', retryable: false });
 
+    // Resolve dynamic modelId
+    let requestedModelId: string | undefined;
+    const bodyModelId = req.body && req.body.modelId;
+    const dataModelId = data && data.modelId;
+    const candidateModelId = bodyModelId || dataModelId;
+    if (candidateModelId) {
+      const parsedContext = ModelRequestContextSchema.safeParse({ modelId: candidateModelId });
+      if (!parsedContext.success) {
+        return res.status(400).json({
+          code: 'INVALID_MODEL_REQUESTED',
+          message: '请求中的 modelId 参数格式不正确。',
+          retryable: false
+        });
+      }
+      requestedModelId = parsedContext.data.modelId;
+    }
+
+    let effectiveModelId: string;
+    try {
+      effectiveModelId = await resolveRuntimeModelId(requestedModelId);
+    } catch (modelErr: any) {
+      return res.status(modelErr.status || 400).json({
+        code: modelErr.code || 'INVALID_MODEL_REQUESTED',
+        message: modelErr.message,
+        retryable: false
+      });
+    }
+
     // Pass buffers for analysis
     const report = await service.analyzeMatch({
         ...input,
         productBuffer: files.productImage[0].buffer,
         sceneBuffer: files.sceneImage[0].buffer,
         overlayBuffer: files.overlayImage[0].buffer
-    });
+    }, effectiveModelId);
     return res.status(200).json(report);
   } catch (error: any) {
     const { status, payload } = handleApiError(error, '分析发生未知错误');

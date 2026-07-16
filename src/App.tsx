@@ -37,6 +37,7 @@ import { TemplateDetailView } from './components/TemplateDetailView';
 import { CanvasInteractionEditor } from './components/CanvasInteractionEditor';
 const ModelCenterPanel = React.lazy(() => import('./components/ModelCenterPanel').then(m => ({ default: m.ModelCenterPanel })));
 import { ModelDiscoveryClient } from './services/modelDiscoveryClient';
+import { useModelSettings } from './context/ModelSettingsContext';
 import { ProductionWorkspace } from './components/ProductionWorkspace';
 import { MOCK_TEMPLATES } from './data/mockTemplates';
 
@@ -186,8 +187,7 @@ export default function App() {
   );
   const [loading, setLoading] = useState(false);
   const [showModelCenter, setShowModelCenter] = useState(false);
-  const [currentModelId, setCurrentModelId] = useState('gemini-3.5-flash');
-  useEffect(() => { ModelDiscoveryClient.fetchModels().then(d => setCurrentModelId(d.currentConfiguredModelId)).catch(e => console.error('Failed to fetch initial model', e)); }, []);
+  const { currentModelId } = useModelSettings();
   const [projectName, setProjectName] = useState('2026年创意定制台历电商发布组图');
   const [selectedProductType, setSelectedProductType] = useState('ring_top_tent');
   const [errorMessage, setErrorMessage] = useState<{ message: string; retryable: boolean } | null>(null);

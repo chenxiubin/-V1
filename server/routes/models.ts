@@ -1,8 +1,8 @@
 import { Router, Request, Response } from 'express';
-import { GeminiModelDiscoveryService, sanitizeModelDiscoveryError } from '../services/geminiModelDiscovery.js';
+import { modelDiscoveryService } from '../services/geminiRuntimeModel.js';
+import { sanitizeModelDiscoveryError } from '../services/geminiModelDiscovery.js';
 
 const router = Router();
-const modelDiscoveryService = new GeminiModelDiscoveryService();
 
 router.get('/models', async (req: Request, res: Response) => {
   try {
