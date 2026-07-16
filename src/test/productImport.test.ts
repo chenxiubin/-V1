@@ -1,8 +1,65 @@
+// @ts-nocheck
 import 'fake-indexeddb/auto';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { ProjectStore } from '../store/projectStore';
 import { clearAllData, saveAsset, getAsset } from '../lib/db';
 import { analyzeImageFile } from '../lib/imageAnalyzer';
+
+// --- Mock browser DOM for Node environment ---
+(global as any).URL = {
+  createObjectURL: (blob) => {
+    if (blob.size === 0) throw new Error("Invalid blob");
+    if (blob.name && blob.name.includes('invalid')) throw new Error('无法读取文件');
+    return 'blob:mock-' + (blob.name || 'blob');
+  },
+  revokeObjectURL: () => {}
+};
+(global as any).Image = class {
+  constructor() {
+    this.naturalWidth = 100;
+    this.naturalHeight = 100;
+  }
+  set src(val) {
+    this._src = val;
+    setTimeout(() => {
+      if (val.includes('corrupt')) {
+        this.onerror && this.onerror();
+      } else {
+        this.onload && this.onload();
+      }
+    }, 0);
+  }
+  get src() {
+    return this._src;
+  }
+};
+(global as any).document = {
+  createElement: (tag) => {
+    if (tag === 'canvas') {
+      return {
+        width: 0, height: 0,
+        getContext: (type) => {
+          if (type === '2d') {
+            return {
+              drawImage: () => {},
+              getImageData: () => {
+                const alpha = (global as any).__mockAlpha !== undefined ? (global as any).__mockAlpha : 255;
+                if (alpha === -1) throw new Error("Canvas Error");
+                return {
+                  data: [255, 255, 255, alpha]
+                };
+              }
+            };
+          }
+          return null;
+        }
+      };
+    }
+    return {};
+  }
+};
+// --------------------------------------------
+
 import { ProductAssetSchema, ProductAsset } from '../types/schemas';
 
 describe('Phase 2-A: Local Product Import, Verification, and Preview Tests', () => {
@@ -17,13 +74,15 @@ describe('Phase 2-A: Local Product Import, Verification, and Preview Tests', () 
   });
 
   it('透明PNG导入成功', async () => {
+    (global as any).__mockAlpha = 0; // Transparent
+
     // Simulate a File object of transparent PNG
     const file = new File(['dummy-png-content'], 'test_calendar.png', { type: 'image/png' });
     
     // Analyze
     const analysis = await analyzeImageFile(file);
     expect(analysis.mimeType).toBe('image/png');
-    expect(analysis.hasAlpha).toBe(true); // PNG defaults to true in Node/test fallback
+    expect(analysis.hasAlpha).toBe(true);
     expect(analysis.name).toBe('test_calendar.png');
 
     // Create asset
@@ -38,8 +97,6 @@ describe('Phase 2-A: Local Product Import, Verification, and Preview Tests', () 
       persistedAssetRef: assetId,
       createdAt: new Date().toISOString(),
     };
-
-    // Schema Validation
     const parseResult = ProductAssetSchema.safeParse(productAsset);
     expect(parseResult.success).toBe(true);
 
@@ -53,7 +110,30 @@ describe('Phase 2-A: Local Product Import, Verification, and Preview Tests', () 
     expect(state.productAsset).toEqual(productAsset);
   });
 
+  
+  it('实底（全不透明）PNG，正确识别为 false', async () => {
+    (global as any).__mockAlpha = 255; // Opaque
+    const file = new File(['dummy-png-content'], 'opaque.png', { type: 'image/png' });
+    const analysis = await analyzeImageFile(file);
+    expect(analysis.mimeType).toBe('image/png');
+    expect(analysis.hasAlpha).toBe(false);
+  });
+  
+  it('图片解码或检测异常，安全降级为 false 且不抛出阻塞异常', async () => {
+    (global as any).__mockAlpha = -1; // Canvas throws error
+    const file = new File(['dummy'], 'canvas_error.png', { type: 'image/png' });
+    const analysis = await analyzeImageFile(file);
+    expect(analysis.hasAlpha).toBe(false);
+  });
+  
+  it('图片完全损坏，解析失败抛出错误', async () => {
+    const file = new File(['corrupt'], 'corrupt.png', { type: 'image/png' });
+    await expect(analyzeImageFile(file)).rejects.toThrow('无法加载图片');
+  });
+  
+
   it('非透明图片风险提示', async () => {
+    (global as any).__mockAlpha = 255;
     // JPEG doesn't have transparency
     const file = new File(['dummy-jpeg-content'], 'test_calendar.jpg', { type: 'image/jpeg' });
     const analysis = await analyzeImageFile(file);

@@ -26,21 +26,6 @@ export function analyzeImageFile(file: File | Blob): Promise<ImageAnalysis> {
       return;
     }
 
-    // Safe fallback for Node/Vitest environment
-    if (typeof window === 'undefined' || !window.Image || !window.URL || !window.URL.createObjectURL) {
-      // Guess alpha based on mimeType (PNG is assumed transparent in tests unless forced otherwise)
-      const isPng = mimeType === 'image/png';
-      resolve({
-        name,
-        mimeType,
-        width: 1024,
-        height: 1024,
-        hasAlpha: isPng,
-        size: file.size,
-      });
-      return;
-    }
-
     const img = new Image();
     let url: string;
     try {
@@ -54,8 +39,8 @@ export function analyzeImageFile(file: File | Blob): Promise<ImageAnalysis> {
 
     img.onload = () => {
       URL.revokeObjectURL(url);
-      const width = img.naturalWidth;
-      const height = img.naturalHeight;
+      const width = img.naturalWidth || 1024;
+      const height = img.naturalHeight || 1024;
 
       let hasAlpha = false;
       if (mimeType === 'image/jpeg') {
