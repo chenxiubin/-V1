@@ -4,6 +4,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ProjectStore } from '../store/projectStore';
 import { clearAllData, saveAsset, getAsset } from '../lib/db';
 import { analyzeImageFile } from '../lib/imageAnalyzer';
+import { RealAdapter } from '../services/ai/realAdapter';
 
 // --- Mock browser DOM for Node environment ---
 (global as any).URL = {
@@ -84,6 +85,7 @@ const createWebpBlob = (name) => {
 describe('Phase 2-A: Local Product Import, Verification, and Preview Tests', () => {
   let store: ProjectStore;
   let saveAssetSpy;
+  let analyzeProductSpy;
 
   beforeEach(async () => {
     // Clear fake-indexeddb
@@ -92,6 +94,7 @@ describe('Phase 2-A: Local Product Import, Verification, and Preview Tests', () 
     store = new ProjectStore();
     store.reset();
     saveAssetSpy = vi.spyOn(dbModule, 'saveAsset');
+    analyzeProductSpy = vi.spyOn(RealAdapter.prototype, 'analyzeProduct').mockImplementation(async () => ({} as any));
   });
 
   // 1. 透明 PNG
@@ -151,7 +154,8 @@ describe('Phase 2-A: Local Product Import, Verification, and Preview Tests', () 
   it('GIF 直接上传', async () => {
     const file = new File(['dummy-gif'], 'calendar.gif', { type: 'image/gif' });
     await expect(analyzeImageFile(file)).rejects.toThrow('不支持的文件格式，请上传 PNG、JPEG 或 WEBP 图片。');
-    expect(saveAssetSpy).not.toHaveBeenCalled();
+    expect(saveAssetSpy).toHaveBeenCalledTimes(0);
+    expect(analyzeProductSpy).toHaveBeenCalledTimes(0);
     expect(store.getState().productAsset).toBeNull();
   });
   
@@ -160,7 +164,9 @@ describe('Phase 2-A: Local Product Import, Verification, and Preview Tests', () 
     const bytes = new Uint8Array([0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0, 0, 0, 0, 0, 0]);
     const file = new File([bytes], 'fake.png', { type: 'image/png' });
     await expect(analyzeImageFile(file)).rejects.toThrow('图片格式与文件内容不一致，请上传真实的 PNG、JPEG 或 WEBP 图片。');
-    expect(saveAssetSpy).not.toHaveBeenCalled();
+    expect(saveAssetSpy).toHaveBeenCalledTimes(0);
+    expect(analyzeProductSpy).toHaveBeenCalledTimes(0);
+    expect(store.getState().productAsset).toBeNull();
   });
   
   // 9. PNG 签名但 JPEG MIME
@@ -196,7 +202,9 @@ describe('Phase 2-A: Local Product Import, Verification, and Preview Tests', () 
     const file = createPngBlob('large.png');
     Object.defineProperty(file, 'size', { value: 11 * 1024 * 1024 });
     await expect(analyzeImageFile(file)).rejects.toThrow('图片大小不能超过 10MB。');
-    expect(saveAssetSpy).not.toHaveBeenCalled();
+    expect(saveAssetSpy).toHaveBeenCalledTimes(0);
+    expect(analyzeProductSpy).toHaveBeenCalledTimes(0);
+    expect(store.getState().productAsset).toBeNull();
   });
   
   // 14. 合法签名但 Image 解码失败

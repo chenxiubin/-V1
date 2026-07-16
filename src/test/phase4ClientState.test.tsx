@@ -21,6 +21,7 @@ import {
 
 // Mock RealAdapter to support integration test assertions
 const mockCreateSceneRecipeFn = vi.fn();
+const mockAnalyzeProductFn = vi.fn();
 
 vi.mock('../services/ai/realAdapter', () => {
   return {
@@ -33,7 +34,7 @@ vi.mock('../services/ai/realAdapter', () => {
         return [];
       }
       async analyzeProduct(params: any) {
-        return {};
+        return mockAnalyzeProductFn(params);
       }
     }
   };
@@ -967,6 +968,125 @@ describe('Integration Tests', () => {
       expect(errorText).not.toBeNull();
 
       persistSpy.mockRestore();
+    });
+
+    describe('Alpha Warning UI and Interactive Tests', () => {
+      beforeEach(async () => {
+        await clearAllData();
+        projectStore.reset();
+        mockAnalyzeProductFn.mockReset().mockResolvedValue(MOCK_PROFILE);
+      });
+
+      it('1. 透明 PNG 不显示警告，且可以点击开始智能分析', async () => {
+        act(() => {
+          projectStore.updateState(() => ({
+            status: 'PRODUCT_IMPORTED',
+            productAsset: {
+              id: 'p-transparent-png',
+              name: 'transparent.png',
+              mimeType: 'image/png',
+              width: 100,
+              height: 100,
+              hasAlpha: true,
+              persistedAssetRef: 'ref-transparent-png',
+              createdAt: new Date().toISOString(),
+            },
+            productProfile: null,
+            guidedQuestions: null,
+            guidedAnswers: [],
+            sceneDirections: null,
+            selectedDirectionId: null,
+          }));
+        });
+
+        render(<App />);
+
+        expect(screen.queryByText('包含透明 Alpha 通道')).not.toBeNull();
+        expect(screen.queryByText(/⚠️ 警告：不包含透明通道/)).toBeNull();
+
+        const btn = screen.getByText('开始智能分析');
+        expect((btn as HTMLButtonElement).disabled).toBe(false);
+
+        await act(async () => {
+          fireEvent.click(btn);
+        });
+
+        expect(mockAnalyzeProductFn).toHaveBeenCalledTimes(1);
+      });
+
+      it('2. 实底 PNG 显示警告，且可以点击开始智能分析', async () => {
+        act(() => {
+          projectStore.updateState(() => ({
+            status: 'PRODUCT_IMPORTED',
+            productAsset: {
+              id: 'p-opaque-png',
+              name: 'opaque.png',
+              mimeType: 'image/png',
+              width: 100,
+              height: 100,
+              hasAlpha: false,
+              persistedAssetRef: 'ref-opaque-png',
+              createdAt: new Date().toISOString(),
+            },
+            productProfile: null,
+            guidedQuestions: null,
+            guidedAnswers: [],
+            sceneDirections: null,
+            selectedDirectionId: null,
+          }));
+        });
+
+        render(<App />);
+
+        expect(screen.queryByText('不包含透明通道')).not.toBeNull();
+        expect(screen.queryByText(/⚠️ 警告：不包含透明通道/)).not.toBeNull();
+
+        const btn = screen.getByText('开始智能分析');
+        expect((btn as HTMLButtonElement).disabled).toBe(false);
+
+        await act(async () => {
+          fireEvent.click(btn);
+        });
+
+        expect(mockAnalyzeProductFn).toHaveBeenCalledTimes(1);
+      });
+
+      it('3. JPEG 显示警告，且可以点击开始智能分析且不被阻断', async () => {
+        act(() => {
+          projectStore.updateState(() => ({
+            status: 'PRODUCT_IMPORTED',
+            productAsset: {
+              id: 'p-jpeg',
+              name: 'test.jpg',
+              mimeType: 'image/jpeg',
+              width: 100,
+              height: 100,
+              hasAlpha: false,
+              persistedAssetRef: 'ref-jpeg',
+              createdAt: new Date().toISOString(),
+            },
+            productProfile: null,
+            guidedQuestions: null,
+            guidedAnswers: [],
+            sceneDirections: null,
+            selectedDirectionId: null,
+          }));
+        });
+
+        render(<App />);
+
+        expect(screen.queryByText('不包含透明通道')).not.toBeNull();
+        expect(screen.queryByText(/⚠️ 警告：不包含透明通道/)).not.toBeNull();
+
+        const btn = screen.getByText('开始智能分析');
+        expect((btn as HTMLButtonElement).disabled).toBe(false);
+
+        await act(async () => {
+          fireEvent.click(btn);
+        });
+
+        expect(mockAnalyzeProductFn).toHaveBeenCalledTimes(1);
+      });
     });
   });
 });
