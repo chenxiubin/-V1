@@ -2185,7 +2185,7 @@ export default function App() {
       </main>
       
 
-      {showModelCenter && <React.Suspense fallback={<div>Loading Model Center...</div>}><ModelCenterPanel onClose={() => setShowModelCenter(false)} /></React.Suspense>}
+      {showModelCenter && <React.Suspense fallback={<div>正在加载模型中心…</div>}><ModelCenterPanel onClose={() => setShowModelCenter(false)} /></React.Suspense>}
     </div>
   );
 }

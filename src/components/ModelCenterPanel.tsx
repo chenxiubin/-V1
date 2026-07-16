@@ -30,16 +30,19 @@ export function ModelCenterPanel({ onClose }: ModelCenterPanelProps) {
     }
   };
 
+  // Init fetch - run ONCE
   useEffect(() => {
     fetchModels();
+  }, []); // Empty dependency array to ensure it only runs once on mount
 
+  // Keydown listener
+  useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
     window.addEventListener('keydown', handleEsc);
     return () => {
       window.removeEventListener('keydown', handleEsc);
-
     };
   }, [onClose]);
 

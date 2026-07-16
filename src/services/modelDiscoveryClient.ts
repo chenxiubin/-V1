@@ -44,4 +44,9 @@ export class ModelDiscoveryClient {
 
     return this.pendingRequest;
   }
+
+  static clearCacheForTests() {
+    this.cachedResult = null;
+    this.pendingRequest = null;
+  }
 }

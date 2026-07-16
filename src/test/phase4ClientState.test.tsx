@@ -1,7 +1,9 @@
+import { ModelDiscoveryClient } from '../services/modelDiscoveryClient';
+import { setupNetworkIsolation } from "./networkIsolation";
 // @vitest-environment happy-dom
 import 'fake-indexeddb/auto';
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import {  describe, it, expect, beforeEach, vi , afterEach } from 'vitest';
+import { render, screen, cleanup, fireEvent, waitFor, act } from '@testing-library/react';
 import React from 'react';
 import App, { projectStore } from '../App';
 import { ProjectStore } from '../store/projectStore';
@@ -277,10 +279,20 @@ const mockPromptDoc: PromptDocument = {
   createdAt: '2023-01-01T00:00:00Z',
 };
 
-describe('Phase 4-C-1: Client State and Persistence (Robust Refactoring)', () => {
+describe('Integration Tests', () => {
+  afterEach(() => {
+    cleanupNetworkIsolation?.();
+    cleanupNetworkIsolation = null;
+    cleanup();
+  });
+  let cleanupNetworkIsolation: (() => void) | null = null;
   let store: ProjectStore;
-
+  
   beforeEach(async () => {
+    vi.resetAllMocks();
+    if (typeof ModelDiscoveryClient !== 'undefined') ModelDiscoveryClient.clearCacheForTests();
+    cleanupNetworkIsolation = setupNetworkIsolation();
+    await clearAllData();
     await clearAllData();
     store = new ProjectStore();
     store.importProduct(MOCK_ASSET);

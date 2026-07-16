@@ -1,8 +1,10 @@
+import { ModelDiscoveryClient } from '../services/modelDiscoveryClient';
+import { setupNetworkIsolation } from "./networkIsolation";
 // @vitest-environment happy-dom
 import 'fake-indexeddb/auto';
 import React from 'react';
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import {  describe, it, expect, beforeEach, vi , afterEach } from 'vitest';
+import { render, screen, cleanup, fireEvent, waitFor, act } from '@testing-library/react';
 import App, { projectStore } from '../App';
 import { clearAllData, saveAsset } from '../lib/db';
 import { ProductAsset, ProductProfile, GuidedQuestion, SceneDirection, GuidedAnswer } from '../types/schemas';
@@ -99,22 +101,32 @@ vi.mock('motion/react', () => {
   };
 });
 
-describe('Phase 3-B-1 Integration and Race Condition Tests', () => {
-  beforeEach(async () => {
-  vi.spyOn(console, 'error').mockImplementation(() => {});
-  vi.spyOn(projectStore, 'loadFromDB').mockResolvedValue(undefined);
+describe('Integration Tests', () => {
+  let cleanupNetworkIsolation: (() => void) | null = null;
 
+  beforeEach(async () => {
+    vi.resetAllMocks();
+    cleanupNetworkIsolation = setupNetworkIsolation();
+    if (typeof ModelDiscoveryClient !== 'undefined') ModelDiscoveryClient.clearCacheForTests();
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(projectStore, 'loadFromDB').mockResolvedValue(undefined);
+    
     await clearAllData();
     projectStore.reset();
+    
     mockQuestionsResolver = null;
     mockQuestionsRejecter = null;
     mockDirectionsResolver = null;
     mockDirectionsRejecter = null;
     mockQuestionsResponse = null;
-    mockDirectionsResponse = null;
-    mockQuestionsError = null;
     mockDirectionsError = null;
     planSceneDirectionsCallCount = 0;
+  });
+  
+  afterEach(() => {
+    cleanupNetworkIsolation?.();
+    cleanupNetworkIsolation = null;
+    cleanup();
   });
 
   const setupBaseStoreState = async (assetId = 'asset-1') => {

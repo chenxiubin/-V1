@@ -269,6 +269,7 @@ export class ProjectStore {
     // 1. Validate Zod Contract Schema
     const parsed = ProjectStateSchema.safeParse(candidateState);
     if (!parsed.success) {
+      console.log("CANDIDATE STATE WAS:", JSON.stringify(candidateState));
       throw new Error(`Zod 校验未通过: ${parsed.error.message}`);
     }
 

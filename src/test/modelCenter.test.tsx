@@ -1,11 +1,11 @@
+import { setupNetworkIsolation } from "./networkIsolation";
 // @vitest-environment happy-dom
 import React from 'react';
-import { render, screen, waitFor, act, cleanup, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, act, cleanup } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ModelCenterPanel } from '../components/ModelCenterPanel';
 import { ModelDiscoveryClient } from '../services/modelDiscoveryClient';
 import App from '../App';
-
 
 vi.mock('../lib/db', () => ({
   initDB: vi.fn().mockResolvedValue(true),
@@ -18,108 +18,86 @@ vi.mock('../lib/db', () => ({
   deleteAsset: vi.fn()
 }));
 
-vi.mock('../services/modelDiscoveryClient', () => ({
-  ModelDiscoveryClient: {
-    fetchModels: vi.fn()
-  }
-}));
-
-// We have to mock ResizeObserver for App
-class ResizeObserver {
-  observe() {}
-  unobserve() {}
-  disconnect() {}
-}
-window.ResizeObserver = ResizeObserver;
-window.HTMLElement.prototype.scrollIntoView = vi.fn();
+const mockSuccessResponse = {
+  models: [
+    {
+      id: 'gemini-3.5-flash',
+      displayName: 'Gemini 3.5 Flash',
+      releaseChannel: 'stable',
+      compatibility: 'compatible',
+      capabilities: { imageInput: true, structuredOutput: true, multimodalStatus: 'confirmed' },
+      inputTokenLimit: 1000000,
+      outputTokenLimit: 8000
+    },
+    {
+      id: 'gemini-2.0-flash-exp',
+      displayName: 'Gemini 2.0 Flash Exp',
+      releaseChannel: 'experimental',
+      compatibility: 'compatible',
+      capabilities: { imageInput: true, structuredOutput: true, multimodalStatus: 'confirmed' },
+      inputTokenLimit: 1000000,
+      outputTokenLimit: 8000
+    },
+    {
+      id: 'gemini-unknown',
+      displayName: 'Unknown Model',
+      releaseChannel: 'unknown',
+      compatibility: 'unknown',
+      capabilities: { imageInput: false, structuredOutput: false, multimodalStatus: 'unknown' },
+      inputTokenLimit: 1000000,
+      outputTokenLimit: 8000
+    },
+    {
+      id: 'gemini-preview',
+      displayName: 'Preview Model',
+      releaseChannel: 'preview',
+      compatibility: 'compatible',
+      capabilities: { imageInput: true, structuredOutput: true, multimodalStatus: 'confirmed' },
+      inputTokenLimit: 1000000,
+      outputTokenLimit: 8000
+    },
+    {
+      id: 'gemini-incompatible',
+      displayName: 'Incompatible Model',
+      releaseChannel: 'stable',
+      compatibility: 'incompatible',
+      capabilities: { imageInput: false, structuredOutput: false, multimodalStatus: 'unknown' },
+      inputTokenLimit: 1000,
+      outputTokenLimit: 1000
+    }
+  ],
+  currentConfiguredModelId: 'gemini-3.5-flash',
+  apiKeyConfigured: true,
+  quota: { officialRemainingToday: null },
+  stale: false
+};
 
 describe('ModelCenter Integration', () => {
-  
-  
-  
-  let originalFetch = global.fetch;
-  beforeEach(() => {
+  let cleanupNetworkIsolation: (() => void) | null = null;
+  let fetchModelsSpy: any;
+
+  beforeEach(async () => {
     vi.resetAllMocks();
-    global.fetch = vi.fn().mockImplementation((url) => {
-      if (url === '/api/health') {
-        return Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve({ status: 'ok' })
-        });
-      }
-      return Promise.reject(new Error('unmocked fetch: ' + url));
-    });
+    cleanupNetworkIsolation = setupNetworkIsolation();
+    ModelDiscoveryClient.clearCacheForTests();
+    fetchModelsSpy = vi.spyOn(ModelDiscoveryClient, 'fetchModels');
   });
 
   afterEach(() => {
+    fetchModelsSpy.mockRestore();
+    cleanupNetworkIsolation?.();
+    cleanupNetworkIsolation = null;
     cleanup();
-    global.fetch = originalFetch;
   });
 
-
-  const mockSuccessResponse = {
-    models: [
-      {
-        id: 'gemini-3.5-flash',
-        displayName: 'Gemini 3.5 Flash',
-        releaseChannel: 'stable',
-        compatibility: 'compatible',
-        capabilities: { imageInput: true, structuredOutput: true, multimodalStatus: 'confirmed' },
-        inputTokenLimit: 1000000,
-        outputTokenLimit: 8000
-      },
-      {
-        id: 'gemini-2.0-flash-exp',
-        displayName: 'Gemini 2.0 Flash Exp',
-        releaseChannel: 'experimental',
-        compatibility: 'compatible',
-        capabilities: { imageInput: true, structuredOutput: true, multimodalStatus: 'confirmed' },
-        inputTokenLimit: 1000000,
-        outputTokenLimit: 8000
-      },
-      {
-        id: 'gemini-unknown',
-        displayName: 'Unknown Model',
-        releaseChannel: 'unknown',
-        compatibility: 'unknown',
-        capabilities: { imageInput: false, structuredOutput: false, multimodalStatus: 'unknown' },
-        inputTokenLimit: 1000000,
-        outputTokenLimit: 8000
-      },
-      {
-        id: 'gemini-preview',
-        displayName: 'Preview Model',
-        releaseChannel: 'preview',
-        compatibility: 'compatible',
-        capabilities: { imageInput: true, structuredOutput: true, multimodalStatus: 'confirmed' },
-        inputTokenLimit: 1000000,
-        outputTokenLimit: 8000
-      },
-      {
-        id: 'gemini-incompatible',
-        displayName: 'Incompatible Model',
-        releaseChannel: 'stable',
-        compatibility: 'incompatible',
-        capabilities: { imageInput: false, structuredOutput: false, multimodalStatus: 'unknown' },
-        inputTokenLimit: 1000,
-        outputTokenLimit: 1000
-      }
-    ],
-    currentConfiguredModelId: 'gemini-3.5-flash',
-    apiKeyConfigured: true,
-    quota: { officialRemainingToday: null },
-    stale: false
-  };
-
   it('renders correctly and checks for models and capabilities in Panel directly', async () => {
-    (ModelDiscoveryClient.fetchModels as any).mockResolvedValue(mockSuccessResponse);
+    fetchModelsSpy.mockResolvedValue(mockSuccessResponse);
     
     await act(async () => {
       render(<ModelCenterPanel onClose={() => {}} />);
     });
 
     expect(screen.getByText('模型中心')).toBeDefined();
-
     expect(screen.getByText('Gemini 3.5 Flash')).toBeDefined();
     expect(screen.getByText('Gemini 2.0 Flash Exp')).toBeDefined();
     expect(screen.getByText('Unknown Model')).toBeDefined();
@@ -137,6 +115,7 @@ describe('ModelCenter Integration', () => {
 
     expect(screen.getByText('官方今日剩余额度无法通过接口获取')).toBeDefined();
     expect(screen.queryByText(/\/1500/)).toBeNull(); // no fake quota
+
     expect(screen.queryByText('切换模型')).toBeNull();
     expect(screen.queryByText('使用此模型')).toBeNull();
     expect(screen.queryByText('保存模型')).toBeNull();
@@ -145,8 +124,9 @@ describe('ModelCenter Integration', () => {
   it('Refreshes with refresh=true and disables button during fetch', async () => {
     let resolveFetch: any;
     const fetchPromise = new Promise(resolve => { resolveFetch = resolve; });
-    (ModelDiscoveryClient.fetchModels as any).mockReturnValueOnce(Promise.resolve(mockSuccessResponse))
-                                             .mockReturnValueOnce(fetchPromise);
+
+    fetchModelsSpy.mockReturnValueOnce(Promise.resolve(mockSuccessResponse))
+                  .mockReturnValueOnce(fetchPromise);
     
     await act(async () => {
       render(<ModelCenterPanel onClose={() => {}} />);
@@ -157,7 +137,8 @@ describe('ModelCenter Integration', () => {
     await act(async () => {
       fireEvent.click(refreshBtn);
     });
-    expect(ModelDiscoveryClient.fetchModels).toHaveBeenCalledWith(true);
+
+    expect(fetchModelsSpy).toHaveBeenCalledWith(true);
     expect(refreshBtn).toHaveProperty('disabled', true);
     
     await act(async () => {
@@ -166,7 +147,7 @@ describe('ModelCenter Integration', () => {
   });
 
   it('Shows stale cache message', async () => {
-    (ModelDiscoveryClient.fetchModels as any).mockResolvedValue({
+    fetchModelsSpy.mockResolvedValue({
       ...mockSuccessResponse,
       stale: true,
       refreshError: 'Network Error'
@@ -183,7 +164,7 @@ describe('ModelCenter Integration', () => {
     const error = new Error('暂时无法获取');
     (error as any).code = 'MODEL_LIST_UNAVAILABLE';
     (error as any).retryable = true;
-    (ModelDiscoveryClient.fetchModels as any).mockRejectedValueOnce(error);
+    fetchModelsSpy.mockRejectedValueOnce(error);
     
     await act(async () => {
       render(<ModelCenterPanel onClose={() => {}} />);
@@ -191,7 +172,7 @@ describe('ModelCenter Integration', () => {
     
     expect(screen.getByText('暂时无法获取')).toBeDefined();
 
-    (ModelDiscoveryClient.fetchModels as any).mockResolvedValueOnce(mockSuccessResponse);
+    fetchModelsSpy.mockResolvedValueOnce(mockSuccessResponse);
     const retryBtn = screen.getByText('重试');
     
     await act(async () => {
@@ -202,7 +183,7 @@ describe('ModelCenter Integration', () => {
   });
 
   it('Closes on escape key, mask click, and close button, but not on content click', async () => {
-    (ModelDiscoveryClient.fetchModels as any).mockResolvedValue(mockSuccessResponse);
+    fetchModelsSpy.mockResolvedValue(mockSuccessResponse);
     const onClose = vi.fn();
     
     await act(async () => {
@@ -219,7 +200,6 @@ describe('ModelCenter Integration', () => {
     // Mask click (the dialog role element)
     const dialog = screen.getByRole('dialog');
     await act(async () => {
-      // simulate clicking the outer boundary
       fireEvent.click(dialog);
     });
     expect(onClose).toHaveBeenCalledTimes(1);
@@ -239,7 +219,7 @@ describe('ModelCenter Integration', () => {
   });
 
   it('App integration: mounts only one button, opens one dialog, and does not mount duplicate panels', async () => {
-    (ModelDiscoveryClient.fetchModels as any).mockResolvedValue(mockSuccessResponse);
+    fetchModelsSpy.mockResolvedValue(mockSuccessResponse);
     
     await act(async () => {
       render(<App />);
@@ -249,13 +229,15 @@ describe('ModelCenter Integration', () => {
     const modelButtons = screen.getAllByText(/当前模型:/);
     expect(modelButtons).toHaveLength(1);
 
+    fetchModelsSpy.mockClear();
+
     // 2. Click to open
     await act(async () => {
       fireEvent.click(modelButtons[0]);
     });
 
     // 3. fetchModels is called exactly once per open
-    expect(ModelDiscoveryClient.fetchModels).toHaveBeenCalled();
+    expect(fetchModelsSpy).toHaveBeenCalledTimes(1);
 
     // 4. 点击按钮只打开一个模型中心; 页面 DOM 中只有一个 dialog
     const dialogs = screen.getAllByRole('dialog');
@@ -275,5 +257,51 @@ describe('ModelCenter Integration', () => {
     expect(screen.queryByRole('dialog')).toBeNull();
     // App top button should still exist
     expect(screen.getByText(/当前模型:/)).toBeDefined();
+  });
+
+  it('Cache behavior: real network request is only fired once per test, second open uses cache', async () => {
+    // We restore spy so it uses the real client which hits the network mock
+    fetchModelsSpy.mockRestore();
+
+    await act(async () => {
+      render(<App />);
+    });
+
+    const modelButtons = screen.getAllByText(/当前模型:/);
+
+    // Clear network mock calls to count clearly
+    const fetchCalls = (global.fetch as any).mock.calls;
+    let initialModelCalls = fetchCalls.filter((c: any) => c[0].toString().includes('/api/ai/models')).length;
+    expect(initialModelCalls).toBe(1); // App mounted and fetched models
+
+    // clear the mock calls history
+    (global.fetch as any).mockClear();
+
+    // Open panel
+    await act(async () => {
+      fireEvent.click(modelButtons[0]);
+    });
+
+    // Wait for panel to open
+    expect(screen.getByText('模型中心')).toBeDefined();
+
+    // Check fetch wasn't called again because of cache
+    const afterOpenCalls = (global.fetch as any).mock.calls.filter((c: any) => c[0].toString().includes('/api/ai/models')).length;
+    expect(afterOpenCalls).toBe(0);
+
+    // Close panel
+    const closeBtn = screen.getByLabelText('关闭模型中心');
+    await act(async () => {
+      fireEvent.click(closeBtn);
+    });
+
+    // Open again
+    await act(async () => {
+      fireEvent.click(modelButtons[0]);
+    });
+
+    // Still no new network request
+    const afterSecondOpenCalls = (global.fetch as any).mock.calls.filter((c: any) => c[0].toString().includes('/api/ai/models')).length;
+    expect(afterSecondOpenCalls).toBe(0);
   });
 });

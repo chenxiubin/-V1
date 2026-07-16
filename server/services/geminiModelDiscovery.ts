@@ -49,10 +49,10 @@ export function sanitizeModelDiscoveryError(error: any) {
   // Redact secrets
   msg = msg.replace(/AIza[a-zA-Z0-9_-]+/g, '[REDACTED]')
            .replace(/sk-[a-zA-Z0-9]+/g, '[REDACTED]')
-           .replace(/(Bearer|api_key=|key=|token=|access_token=)[^&\s'"]+/gi, '$1[REDACTED]')
-           .replace(/Authorization:\s*[^'"\s]+/gi, 'Authorization: [REDACTED]')
-           .replace(/data:image\/[^;]+;base64,[a-zA-Z0-9+/=]+/gi, '[REDACTED]')
-           .replace(/(localhost|127\.0\.0\.1|file:\/\/|\/home\/|\/mnt\/|\/tmp\/|\/var\/|[A-Z]:\\[^\s'"]+)/gi, '[REDACTED]');
+           .replace(/(Bearer\s+|api_key=|key=|token=|access_token=)[^&\s'"]+/gi, '$1[REDACTED]')
+           .replace(/Authorization:\s*[^'"\r\n]+/gi, 'Authorization: [REDACTED]')
+           .replace(/data:image\/[^;]+;base64,[a-zA-Z0-9+/=\s]+/gi, '[REDACTED]')
+           .replace(/(?:https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?(?:[^\s'"]+)?|file:\/\/[^\s'"]+|\/(?:home|mnt|tmp|var)(?:\/[^\s'"]*)?|[A-Z]:\\[^\s'"]*)/gi, '[REDACTED]');
 
   return {
     code: error?.status || error?.code || 'UNKNOWN',

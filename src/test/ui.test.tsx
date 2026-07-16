@@ -1,8 +1,10 @@
+import { ModelDiscoveryClient } from '../services/modelDiscoveryClient';
+import { setupNetworkIsolation } from "./networkIsolation";
 // @vitest-environment happy-dom
 import 'fake-indexeddb/auto';
 import React from 'react';
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import {  describe, it, expect, beforeAll, beforeEach, vi , afterEach } from 'vitest';
+import { render, screen, cleanup, fireEvent, waitFor, act } from '@testing-library/react';
 import App, { projectStore } from '../App';
 import { clearAllData, saveAsset } from '../lib/db';
 import { ProductAsset } from '../types/schemas';
@@ -16,120 +18,129 @@ if (typeof window !== 'undefined') {
   window.URL.revokeObjectURL = vi.fn();
 }
 
-let resolveAnalyze: ((value: any) => void) | null = null;
-let analyzePromise: Promise<any> | null = null;
 
-function resetDeferredPromise() {
-  analyzePromise = new Promise((resolve) => {
-    resolveAnalyze = resolve;
-  });
-}
+
+
+
+
+
 
 // Mock RealAdapter to support multiple success, error, and mismatch test cases
 vi.mock('../services/ai/realAdapter', () => {
-  const mockAnalyzeProduct = vi.fn().mockImplementation(async ({ productAsset }) => {
-    if (productAsset.id === 'trigger-deferred' && analyzePromise) {
-      return await analyzePromise;
-    }
-
-    // Add a small artificial delay to simulate network latency
-    // and let UI testing verify the 'ANALYZING_PRODUCT' loading state properly.
-    await new Promise(resolve => setTimeout(resolve, 50));
-
-    if (productAsset.id === 'trigger-error') {
-      const err = new Error('模型服务暂时不可用，请稍后重试');
-      (err as any).retryable = true;
-      throw err;
-    }
-    if (productAsset.id === 'trigger-fatal') {
-      const err = new Error('致命格式损坏，不可恢复');
-      (err as any).retryable = false;
-      throw err;
-    }
-    if (productAsset.id === 'trigger-invalid-profile') {
-      // Simulate Zod validation error
-      throw new Error('Zod 校验未通过: invalid data');
-    }
-    if (productAsset.id === 'trigger-low-confidence') {
-      return {
-        schemaVersion: '1.0',
-        productAssetId: productAsset.id,
-        productType: 'desk_calendar',
-        bracketType: 'wood_base',
-        subjectBounds: { x: 100, y: 100, width: 600, height: 600 },
-        contactRegion: { xStart: 200, xEnd: 600, y: 700, confidence: 'high' },
-        view: {
-          class: 'front_left',
-          visibleTop: 'none',
-          visibleSide: 'left',
-          perspectiveStrength: 'low',
-        },
-        materials: [
-          { name: 'paper', reflectivity: 'low' },
-        ],
-        palette: {
-          dominant: ['#FFFFFF', '#000000'],
-          edgeBrightness: 'light',
-        },
-        existingLighting: {
-          direction: 'diffuse',
-          temperature: 'neutral',
-          softness: 'soft',
-          contrast: 'low',
-        },
-        overallConfidence: 'low',
-        uncertainties: [
-          { field: 'bracketType', reason: '台历底部被部分遮挡，无法精确判断底座材质。', confidence: 'low' }
-        ],
-        analyzedAt: new Date().toISOString(),
-      };
-    }
-    
-    // Default Success Case
-    return {
-      schemaVersion: '1.0',
-      productAssetId: productAsset.id,
-      productType: 'desk_calendar',
-      bracketType: 'paper_base',
-      subjectBounds: { x: 100, y: 100, width: 600, height: 600 },
-      contactRegion: { xStart: 200, xEnd: 600, y: 700, confidence: 'high' },
-      view: {
-        class: 'front',
-        visibleTop: 'none',
-        visibleSide: 'none',
-        perspectiveStrength: 'low',
-      },
-      materials: [
-        { name: 'paper', reflectivity: 'low' },
-      ],
-      palette: {
-        dominant: ['#FF0000', '#00FF00'],
-        edgeBrightness: 'mid',
-      },
-      existingLighting: {
-        direction: 'front',
-        temperature: 'neutral',
-        softness: 'soft',
-        contrast: 'medium',
-      },
-      overallConfidence: 'high',
-      uncertainties: [],
-      analyzedAt: new Date().toISOString(),
-    };
-  });
-
   return {
     RealAdapter: class {
-      analyzeProduct = mockAnalyzeProduct;
+      async analyzeProduct({ productAsset }: any) {
+        if (productAsset.id === 'trigger-deferred') {
+          return await new Promise(resolve => {
+            (window as any).resolveAnalyze = resolve;
+          });
+        }
+        await new Promise(resolve => setTimeout(resolve, 50));
+        if (productAsset.id === 'trigger-error') {
+          const err = new Error('模型服务暂时不可用，请稍后重试');
+          (err as any).retryable = true;
+          throw err;
+        }
+        if (productAsset.id === 'trigger-fatal') {
+          const err = new Error('致命格式损坏，不可恢复');
+          (err as any).retryable = false;
+          throw err;
+        }
+        if (productAsset.id === 'trigger-invalid-profile') {
+          throw new Error('Zod 校验未通过: invalid data');
+        }
+        if (productAsset.id === 'trigger-low-confidence') {
+          return {
+            schemaVersion: '1.0',
+            productAssetId: productAsset.id,
+            productType: 'desk_calendar',
+            bracketType: 'wood_base',
+            subjectBounds: { x: 100, y: 100, width: 600, height: 600 },
+            contactRegion: { xStart: 200, xEnd: 600, y: 700, confidence: 'high' },
+            view: {
+              class: 'front_left',
+              visibleTop: 'none',
+              visibleSide: 'left',
+              perspectiveStrength: 'low',
+            },
+            materials: [
+              { name: 'paper', reflectivity: 'low' },
+            ],
+            palette: {
+              dominant: ['#FFFFFF', '#000000'],
+              edgeBrightness: 'light',
+            },
+            existingLighting: {
+              direction: 'diffuse',
+              temperature: 'neutral',
+              softness: 'soft',
+              contrast: 'low',
+            },
+            overallConfidence: 'low',
+            uncertainties: [
+              { field: 'bracketType', reason: '台历底部被部分遮挡，无法精确判断底座材质。', confidence: 'low' }
+            ],
+            analyzedAt: new Date().toISOString(),
+          };
+        }
+        return {
+          schemaVersion: '1.0',
+          productAssetId: productAsset.id,
+          productType: 'desk_calendar',
+          bracketType: 'paper_base',
+          subjectBounds: { x: 100, y: 100, width: 600, height: 600 },
+          contactRegion: { xStart: 200, xEnd: 600, y: 700, confidence: 'high' },
+          view: {
+            class: 'front',
+            visibleTop: 'none',
+            visibleSide: 'none',
+            perspectiveStrength: 'low',
+          },
+          materials: [
+            { name: 'paper', reflectivity: 'low' },
+          ],
+          palette: {
+            dominant: ['#FF0000', '#00FF00'],
+            edgeBrightness: 'mid',
+          },
+          overallConfidence: 'high',
+          uncertainties: [],
+          analyzedAt: new Date().toISOString(),
+          existingLighting: {
+            direction: 'front',
+            temperature: 'neutral',
+            softness: 'soft',
+            contrast: 'medium',
+          },
+        };
+      }
     }
   };
 });
 
-describe('Phase 2-C: UI Integration and Automation Tests', () => {
+describe('Integration Tests', () => {
+
+  let cleanupNetworkIsolation: (() => void) | null = null;
+  
+  beforeEach(async () => {
+    vi.resetAllMocks();
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    if (typeof ModelDiscoveryClient !== 'undefined') ModelDiscoveryClient.clearCacheForTests();
+    cleanupNetworkIsolation = setupNetworkIsolation();
+  });
+
+  afterEach(() => {
+    cleanupNetworkIsolation?.();
+    cleanupNetworkIsolation = null;
+    cleanup();
+  });
+
   beforeEach(async () => {
     await clearAllData();
     projectStore.reset();
-    resetDeferredPromise();
+    
   });
 
   const importDummyProduct = async (id = 'test-asset-1') => {
@@ -162,11 +173,14 @@ describe('Phase 2-C: UI Integration and Automation Tests', () => {
     expect(btnStart).toBeDefined();
 
     // Click analysis button
+    console.log("BEFORE CLICK ID IS:", projectStore.getState().productAsset?.id);
     fireEvent.click(btnStart);
 
     // Verify state transition and loading UI display
+    console.log("LS DEBUG_ID:", window.localStorage.getItem('DEBUG_ID'));
     expect(projectStore.getState().status).toBe('ANALYZING_PRODUCT');
     await waitFor(() => {
+      console.log(document.body.innerHTML);
       expect(screen.getByText('台历智能分析中...')).toBeDefined();
       expect(screen.getByText(/正在深度分析台历的物理结构/i)).toBeDefined();
     });
@@ -192,6 +206,9 @@ describe('Phase 2-C: UI Integration and Automation Tests', () => {
         dominant: ['#FF0000', '#00FF00'],
         edgeBrightness: 'mid',
       },
+      overallConfidence: 'high',
+      uncertainties: [],
+      analyzedAt: new Date().toISOString(),
       existingLighting: {
         direction: 'front',
         temperature: 'neutral',
@@ -203,9 +220,7 @@ describe('Phase 2-C: UI Integration and Automation Tests', () => {
       analyzedAt: new Date().toISOString(),
     };
 
-    if (resolveAnalyze) {
-      resolveAnalyze(dummyProfile);
-    }
+    if ((window as any).resolveAnalyze) { (window as any).resolveAnalyze(dummyProfile); }
 
     // Settle promise and verify transition to PRODUCT_REVIEW
     await waitFor(() => {

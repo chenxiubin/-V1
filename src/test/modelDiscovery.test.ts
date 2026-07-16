@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { GeminiModelDiscoveryService, getSupportedModelActions, sanitizeModelDiscoveryError } from '../../server/services/geminiModelDiscovery.js';
 
 const mockList = vi.fn();
@@ -14,9 +14,13 @@ vi.mock('@google/genai', () => {
 });
 
 describe('GeminiModelDiscoveryService', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
   let service: GeminiModelDiscoveryService;
 
   beforeEach(() => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
     service = new GeminiModelDiscoveryService();
     process.env.GEMINI_API_KEY = 'test-key';
     process.env.GEMINI_ANALYSIS_MODEL = 'gemini-3.5-flash';
@@ -46,19 +50,79 @@ describe('GeminiModelDiscoveryService', () => {
   });
 
   describe('sanitizeModelDiscoveryError', () => {
-    it('redacts sensitive information properly', () => {
-      const err = new Error('Failed to connect to http://localhost:3000?api_key=AIzaSyB123&token=secret123 Authorization: Bearer sk-1234567890123456789012345678901234567890 data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAE \'/home/user/file.txt\' \'C:\\Windows\\temp\'');
+    it('redacts Authorization Bearer Token', () => {
+      const err = new Error('Failed: Authorization: Bearer TOPSECRET123');
       const sanitized = sanitizeModelDiscoveryError(err);
-      const serialized = JSON.stringify(sanitized);
+      expect(sanitized.messageSummary).not.toContain('TOPSECRET123');
+      expect(sanitized.messageSummary).toContain('Authorization: [REDACTED]');
+    });
 
-      expect(serialized).not.toContain('AIza');
-      expect(serialized).not.toContain('secret123');
-      expect(serialized).not.toContain('Bearer sk-');
-      expect(serialized).not.toContain('localhost');
-      expect(serialized).not.toContain('/home/');
-      expect(serialized).not.toContain('C:\\');
-      expect(serialized).toContain('[REDACTED]');
-      expect((sanitized as Record<string, unknown>).stack).toBeUndefined();
+    it('redacts simple Bearer Token', () => {
+      const err = new Error('Failed: Bearer TOPSECRET123');
+      const sanitized = sanitizeModelDiscoveryError(err);
+      expect(sanitized.messageSummary).not.toContain('TOPSECRET123');
+      expect(sanitized.messageSummary).toContain('Bearer [REDACTED]');
+    });
+
+    it('redacts AIza and sk- Key', () => {
+      const err = new Error('Keys AIzaSyB123 and sk-12345678901234567890');
+      const sanitized = sanitizeModelDiscoveryError(err);
+      expect(sanitized.messageSummary).not.toContain('AIzaSyB123');
+      expect(sanitized.messageSummary).not.toContain('12345678901234567890');
+      expect(sanitized.messageSummary).toContain('[REDACTED]');
+    });
+
+    it('redacts URL token parameter', () => {
+      const err = new Error('URL param token=SECRET_VAL_456');
+      const sanitized = sanitizeModelDiscoveryError(err);
+      expect(sanitized.messageSummary).not.toContain('SECRET_VAL_456');
+      expect(sanitized.messageSummary).toContain('token=[REDACTED]');
+    });
+
+    it('redacts localhost complete URL', () => {
+      const err = new Error('Error at http://localhost:3000/private/path?token=abc');
+      const sanitized = sanitizeModelDiscoveryError(err);
+      expect(sanitized.messageSummary).not.toContain('private/path');
+      expect(sanitized.messageSummary).not.toContain('token=abc');
+      expect(sanitized.messageSummary).not.toContain('localhost');
+      expect(sanitized.messageSummary).toContain('[REDACTED]');
+    });
+
+    it('redacts file:// paths', () => {
+      const err = new Error('Error at file:///home/user/secret.txt');
+      const sanitized = sanitizeModelDiscoveryError(err);
+      expect(sanitized.messageSummary).not.toContain('user/secret.txt');
+      expect(sanitized.messageSummary).not.toContain('file://');
+      expect(sanitized.messageSummary).toContain('[REDACTED]');
+    });
+
+    it('redacts Unix absolute paths', () => {
+      const err = new Error('Error at /home/user/secret.txt and /var/www/html');
+      const sanitized = sanitizeModelDiscoveryError(err);
+      expect(sanitized.messageSummary).not.toContain('user/secret.txt');
+      expect(sanitized.messageSummary).not.toContain('www/html');
+      expect(sanitized.messageSummary).toContain('[REDACTED]');
+    });
+
+    it('redacts Windows absolute paths', () => {
+      const err = new Error('Error at C:\\Windows\\temp\\secret.txt');
+      const sanitized = sanitizeModelDiscoveryError(err);
+      expect(sanitized.messageSummary).not.toContain('temp\\secret.txt');
+      expect(sanitized.messageSummary).toContain('[REDACTED]');
+    });
+
+    it('redacts Base64 image data', () => {
+      const err = new Error('Upload failed: data:image/png;base64,AAAA BBBB');
+      const sanitized = sanitizeModelDiscoveryError(err);
+      expect(sanitized.messageSummary).not.toContain('AAAA');
+      expect(sanitized.messageSummary).not.toContain('BBBB');
+      expect(sanitized.messageSummary).toContain('[REDACTED]');
+    });
+
+    it('does not leak original stack', () => {
+      const err = new Error('Test error');
+      const sanitized = sanitizeModelDiscoveryError(err);
+      expect((sanitized as any).stack).toBeUndefined();
     });
 
     it('preserves status and retryable for 403 and maintains general message', () => {
@@ -70,8 +134,6 @@ describe('GeminiModelDiscoveryService', () => {
       expect(sanitized.messageSummary).toContain('Forbidden');
     });
   });
-
-
   describe('Service behaviors', () => {
     it('fails if no API key', async () => {
       delete process.env.GEMINI_API_KEY;
@@ -188,18 +250,30 @@ describe('GeminiModelDiscoveryService', () => {
       expect(res.models.length).toBe(1);
     });
 
-    it('serves stale cache on refresh error', async () => {
+        it('serves stale cache on refresh error and does not mutate original cache with real sanitizer', async () => {
       const mockModels = [{ name: 'models/gemini-3.5-flash', supportedGenerationMethods: ['generateContent'] }];
       mockList.mockResolvedValueOnce(mockModels);
-
-      await service.getAvailableModels();
+      const originalResult = await service.getAvailableModels();
+      expect(originalResult.stale).toBe(false);
       
-      mockList.mockRejectedValueOnce(new Error('Network error'));
+      mockList.mockRejectedValueOnce(new Error('Network error with Authorization: Bearer TOPSECRET123 and file:///home/user/secret.txt'));
       
-      const result = await service.getAvailableModels(true);
-      expect(result.stale).toBe(true);
-      expect(result.refreshError).toBe('Network error');
-      expect(result.models.length).toBe(1);
+      const staleResult = await service.getAvailableModels(true);
+      expect(staleResult.stale).toBe(true);
+      expect(staleResult.refreshError).not.toContain('TOPSECRET123');
+      expect(staleResult.refreshError).not.toContain('user/secret.txt');
+      expect(staleResult.refreshError).toContain('[REDACTED]');
+      expect(staleResult.models.length).toBe(1);
+      
+      // Original cache should remain pristine
+      expect(originalResult.stale).toBe(false);
+      expect(originalResult.refreshError).toBeUndefined();
+      expect(staleResult).not.toBe(originalResult);
+      
+      // Next normal fetch should return pristine cache
+      const cachedResult = await service.getAvailableModels(false);
+      expect(cachedResult.stale).toBe(false);
+      expect(cachedResult.refreshError).toBeUndefined();
     });
 
     it('throws API_KEY_INVALID for 400/403', async () => {
